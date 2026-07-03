@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+openai
+requests
+numpy
+soundfile
+
+# GECToR (grammar correction with RoBERTa)
+# These should be installed in the correct conda env
+# transformers
+# gector
+# torch
