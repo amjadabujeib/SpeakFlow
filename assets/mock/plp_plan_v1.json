@@ -1,0 +1,1129 @@
+{
+  "schema_version": 1,
+  "plan": {
+    "id": "plan_ar_b1_confident_speaking_001",
+    "revision": 1,
+    "title": "Confident English for Real Life",
+    "description": "A focused four-week path for an Arabic-speaking B1 learner who wants clearer speech and more confidence in travel, daily life, and work conversations.",
+    "level": {
+      "current": "B1",
+      "target": "B2",
+      "label": "Intermediate to Upper-Intermediate"
+    },
+    "schedule": {
+      "duration_weeks": 4,
+      "days_per_week": 5,
+      "minutes_per_day": 20
+    },
+    "focus_areas": [
+      "Conversation",
+      "Pronunciation",
+      "Useful vocabulary",
+      "Listening-ready grammar"
+    ],
+    "weeks": [
+      {
+        "id": "week_01",
+        "sequence": 1,
+        "title": "Travel with confidence",
+        "description": "Handle airport plans and common travel questions clearly.",
+        "objectives": [
+          "Use practical airport vocabulary",
+          "Explain future travel plans",
+          "Distinguish the English /θ/ and /ð/ sounds"
+        ],
+        "units": [
+          {
+            "id": "unit_01_airport",
+            "sequence": 1,
+            "title": "At the airport",
+            "description": "Build a complete language toolkit for planning and navigating a flight.",
+            "objectives": [
+              "Ask and answer airport questions",
+              "Describe an itinerary",
+              "Produce TH sounds more deliberately"
+            ],
+            "lessons": [
+              {
+                "id": "lesson_01_airport_words",
+                "sequence": 1,
+                "type": "vocabulary",
+                "title": "Airport essentials",
+                "description": "Learn high-value words used before and during a flight.",
+                "estimated_minutes": 15,
+                "xp": 20,
+                "completion_policy": {"mode": "finish"},
+                "objectives": [
+                  "Understand three common airport terms",
+                  "Use each term in a realistic sentence"
+                ],
+                "skill_ids": ["vocabulary.travel.airport", "communication.travel"],
+                "required_lesson_ids": [],
+                "personalization_reason": "Travel is one of your selected goals, so the plan begins with language you can use immediately.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:travel", "skill:vocabulary", "context:airport"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Focus on meaning and natural combinations, not isolated translation.",
+                  "activities": [
+                    {
+                      "id": "activity_01_itinerary",
+                      "type": "vocabulary_card",
+                      "word": "itinerary",
+                      "part_of_speech": "noun",
+                      "ipa": "/aɪˈtɪnəreri/",
+                      "definition": "A detailed plan for a journey, including places and times.",
+                      "examples": [
+                        "I emailed the itinerary to everyone in our group.",
+                        "Our itinerary includes a two-hour stop in Istanbul."
+                      ],
+                      "collocations": ["travel itinerary", "detailed itinerary", "confirm an itinerary"]
+                    },
+                    {
+                      "id": "activity_02_layover",
+                      "type": "vocabulary_card",
+                      "word": "layover",
+                      "part_of_speech": "noun",
+                      "ipa": "/ˈleɪˌoʊvər/",
+                      "definition": "A period of waiting between two parts of a flight.",
+                      "examples": [
+                        "We have a short layover in Doha.",
+                        "Is the layover long enough to leave the airport?"
+                      ],
+                      "collocations": ["short layover", "overnight layover", "four-hour layover"]
+                    },
+                    {
+                      "id": "activity_03_carry_on",
+                      "type": "vocabulary_card",
+                      "word": "carry-on",
+                      "part_of_speech": "noun",
+                      "ipa": "/ˈkæri ɑːn/",
+                      "definition": "A small bag that a passenger takes onto an aircraft.",
+                      "examples": [
+                        "My laptop is in my carry-on.",
+                        "This ticket includes one carry-on."
+                      ],
+                      "collocations": ["carry-on bag", "one carry-on", "carry-on allowance"]
+                    },
+                    {
+                      "id": "activity_04_airport_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which word means a planned route and schedule for a journey?",
+                      "options": [
+                        {"id": "a", "text": "carry-on"},
+                        {"id": "b", "text": "itinerary"},
+                        {"id": "c", "text": "layover"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "An itinerary records the route, times, and activities planned for a journey."
+                    },
+                    {
+                      "id": "activity_05_airport_blank",
+                      "type": "fill_blank",
+                      "prompt": "We have a three-hour _____ in Dubai before the next flight.",
+                      "accepted_answers": ["layover", "stopover"],
+                      "explanation": "A layover or stopover is time spent waiting between connecting flights."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_02_future_plans",
+                "sequence": 2,
+                "type": "grammar",
+                "title": "Talking about travel plans",
+                "description": "Choose natural future forms for intentions and arrangements.",
+                "estimated_minutes": 20,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": [
+                  "Use going to for intentions",
+                  "Use the present continuous for fixed arrangements"
+                ],
+                "skill_ids": ["grammar.future.intentions", "communication.travel"],
+                "required_lesson_ids": ["lesson_01_airport_words"],
+                "personalization_reason": "This grammar turns the travel vocabulary you just learned into useful plans and answers.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:travel", "skill:grammar", "grammar:future"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "English uses different future forms depending on whether a plan is an intention or a fixed arrangement.",
+                  "activities": [
+                    {
+                      "id": "activity_06_going_to",
+                      "type": "concept",
+                      "title": "Intentions: be going to",
+                      "explanation": "Use be going to when you have decided what you intend to do, but the details may not be formally arranged.",
+                      "key_points": [
+                        "Use am, is, or are before going to.",
+                        "The main verb stays in its base form."
+                      ],
+                      "examples": [
+                        "I am going to visit my cousin.",
+                        "We are going to book a hotel tonight."
+                      ]
+                    },
+                    {
+                      "id": "activity_07_present_continuous",
+                      "type": "concept",
+                      "title": "Arrangements: present continuous",
+                      "explanation": "Use the present continuous when the arrangement is fixed, often with a specific time or place.",
+                      "key_points": [
+                        "Use am, is, or are plus the -ing form.",
+                        "Include a future time expression when context is unclear."
+                      ],
+                      "examples": [
+                        "We are flying on Friday morning.",
+                        "I am meeting the driver at six."
+                      ]
+                    },
+                    {
+                      "id": "activity_08_future_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "The tickets are booked. We _____ to Cairo at 8:00 tomorrow.",
+                      "options": [
+                        {"id": "a", "text": "fly"},
+                        {"id": "b", "text": "are flying"},
+                        {"id": "c", "text": "flying"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "The booked flight is a fixed arrangement, so the present continuous is natural."
+                    },
+                    {
+                      "id": "activity_09_future_blank",
+                      "type": "fill_blank",
+                      "prompt": "I have decided to travel in August. I _____ visit Turkey.",
+                      "accepted_answers": ["am going to", "'m going to"],
+                      "explanation": "Going to expresses the intention you have already decided on."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_03_th_sounds",
+                "sequence": 3,
+                "type": "pronunciation",
+                "title": "Clear TH sounds",
+                "description": "Contrast /θ/ and /ð/ without replacing them with /s/, /z/, /t/, or /d/.",
+                "estimated_minutes": 15,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": [
+                  "Produce voiceless /θ/ with continuous airflow",
+                  "Produce voiced /ð/ with vocal-fold vibration"
+                ],
+                "skill_ids": ["pronunciation.phone.TH", "pronunciation.phone.DH"],
+                "required_lesson_ids": ["lesson_02_future_plans"],
+                "personalization_reason": "These sounds do not exist as the same phonemes in many Arabic varieties and often benefit from focused placement practice.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "skill:pronunciation", "l1:Arabic", "phone:TH", "phone:DH"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Use the instructions here to understand the movement, then use the Practice tab when you want acoustic scoring.",
+                  "activities": [
+                    {
+                      "id": "activity_10_voiceless_th",
+                      "type": "pronunciation_drill",
+                      "title": "Voiceless TH",
+                      "target_ipa": "/θ/",
+                      "instructions": "Place the tip of your tongue lightly between your teeth and let air continue through the gap without voicing.",
+                      "tips": [
+                        "Do not stop the air as you would for /t/.",
+                        "Keep the tongue relaxed and visible in a mirror."
+                      ],
+                      "practice_items": [
+                        {"text": "think", "ipa": "/θɪŋk/"},
+                        {"text": "three", "ipa": "/θriː/"},
+                        {"text": "Thursday", "ipa": "/ˈθɝːzdeɪ/"}
+                      ]
+                    },
+                    {
+                      "id": "activity_11_voiced_th",
+                      "type": "pronunciation_drill",
+                      "title": "Voiced TH",
+                      "target_ipa": "/ð/",
+                      "instructions": "Keep the same tongue position, but add vibration in your throat while the air continues.",
+                      "tips": [
+                        "Touch your throat to check for vibration.",
+                        "Avoid closing the tongue contact into /d/."
+                      ],
+                      "practice_items": [
+                        {"text": "this", "ipa": "/ðɪs/"},
+                        {"text": "weather", "ipa": "/ˈwɛðər/"},
+                        {"text": "those", "ipa": "/ðoʊz/"}
+                      ]
+                    },
+                    {
+                      "id": "activity_12_th_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which word begins with the voiced sound /ð/?",
+                      "options": [
+                        {"id": "a", "text": "think"},
+                        {"id": "b", "text": "three"},
+                        {"id": "c", "text": "those"}
+                      ],
+                      "correct_option_id": "c",
+                      "explanation": "Those begins with voiced /ð/; think and three begin with voiceless /θ/."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_04_airport_checkpoint",
+                "sequence": 4,
+                "type": "assessment",
+                "title": "Airport checkpoint",
+                "description": "Check your vocabulary, grammar, and sound awareness.",
+                "estimated_minutes": 10,
+                "xp": 40,
+                "completion_policy": {"mode": "minimum_score", "minimum_score": 70},
+                "objectives": ["Confirm readiness to move to the next context"],
+                "skill_ids": ["vocabulary.travel.airport", "grammar.future.intentions", "pronunciation.phone.TH", "pronunciation.phone.DH"],
+                "required_lesson_ids": ["lesson_03_th_sounds"],
+                "personalization_reason": "A short checkpoint prevents the plan from advancing based only on lesson completion.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:travel", "activity:assessment"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Score at least 70% to consider this unit secure. Mock progress still allows review without permanently saving results.",
+                  "activities": [
+                    {
+                      "id": "activity_13_checkpoint_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which item normally stays with you inside the aircraft cabin?",
+                      "options": [
+                        {"id": "a", "text": "a carry-on"},
+                        {"id": "b", "text": "an itinerary"},
+                        {"id": "c", "text": "a layover"}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "A carry-on is the bag you take into the cabin."
+                    },
+                    {
+                      "id": "activity_14_checkpoint_blank",
+                      "type": "fill_blank",
+                      "prompt": "The reservation is confirmed. We _____ at the hotel on Monday.",
+                      "accepted_answers": ["are staying", "'re staying"],
+                      "explanation": "A confirmed reservation is a fixed arrangement, so present continuous is appropriate."
+                    },
+                    {
+                      "id": "activity_15_checkpoint_th",
+                      "type": "multiple_choice",
+                      "prompt": "Which pair contains one /θ/ word and one /ð/ word?",
+                      "options": [
+                        {"id": "a", "text": "think — those"},
+                        {"id": "b", "text": "three — think"},
+                        {"id": "c", "text": "this — weather"}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "Think starts with /θ/, while those starts with /ð/."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "week_02",
+        "sequence": 2,
+        "title": "Everyday conversations",
+        "description": "Make requests, arrange appointments, and distinguish /p/ from /b/.",
+        "objectives": [
+          "Use practical appointment vocabulary",
+          "Make polite requests",
+          "Produce a clearer /p/ and /b/ contrast"
+        ],
+        "units": [
+          {
+            "id": "unit_02_daily_tasks",
+            "sequence": 1,
+            "title": "Appointments and errands",
+            "description": "Handle common service conversations efficiently and politely.",
+            "objectives": [
+              "Arrange or change an appointment",
+              "Ask for help politely",
+              "Avoid confusing words such as park and bark"
+            ],
+            "lessons": [
+              {
+                "id": "lesson_05_appointment_words",
+                "sequence": 1,
+                "type": "vocabulary",
+                "title": "Appointment language",
+                "description": "Learn verbs and nouns for scheduling everyday services.",
+                "estimated_minutes": 15,
+                "xp": 20,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Schedule, confirm, and reschedule an appointment"],
+                "skill_ids": ["vocabulary.daily.appointments", "communication.services"],
+                "required_lesson_ids": ["lesson_04_airport_checkpoint"],
+                "personalization_reason": "Service conversations are frequent, short, and ideal for building speaking confidence.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:daily-life", "skill:vocabulary"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Learn the complete phrase around each word so it is easier to retrieve during a real conversation.",
+                  "activities": [
+                    {
+                      "id": "activity_16_reschedule",
+                      "type": "vocabulary_card",
+                      "word": "reschedule",
+                      "part_of_speech": "verb",
+                      "ipa": "/ˌriːˈskedʒuːl/",
+                      "definition": "To arrange a new time for an event or appointment.",
+                      "examples": ["Could I reschedule my appointment for Thursday?"],
+                      "collocations": ["reschedule an appointment", "reschedule a meeting"]
+                    },
+                    {
+                      "id": "activity_17_availability",
+                      "type": "vocabulary_card",
+                      "word": "availability",
+                      "part_of_speech": "noun",
+                      "ipa": "/əˌveɪləˈbɪləti/",
+                      "definition": "The times when someone or something is free to be used.",
+                      "examples": ["What availability do you have this week?"],
+                      "collocations": ["check availability", "limited availability"]
+                    },
+                    {
+                      "id": "activity_18_confirm",
+                      "type": "vocabulary_card",
+                      "word": "confirm",
+                      "part_of_speech": "verb",
+                      "ipa": "/kənˈfɝːm/",
+                      "definition": "To state that an arrangement is definite or correct.",
+                      "examples": ["I am calling to confirm tomorrow's appointment."],
+                      "collocations": ["confirm a booking", "confirm the time"]
+                    },
+                    {
+                      "id": "activity_19_appointment_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "You cannot attend at the original time. What do you need to do?",
+                      "options": [
+                        {"id": "a", "text": "confirm it"},
+                        {"id": "b", "text": "reschedule it"},
+                        {"id": "c", "text": "check in"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "Reschedule means arranging a different time."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_06_polite_requests",
+                "sequence": 2,
+                "type": "grammar",
+                "title": "Polite requests",
+                "description": "Adjust direct questions so they sound cooperative and natural.",
+                "estimated_minutes": 20,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Use could and would in service conversations"],
+                "skill_ids": ["grammar.modals.requests", "pragmatics.politeness"],
+                "required_lesson_ids": ["lesson_05_appointment_words"],
+                "personalization_reason": "Polite request frames reduce hesitation because you can reuse them in many settings.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "skill:grammar", "function:request"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "A small change in structure can make a request sound much more natural.",
+                  "activities": [
+                    {
+                      "id": "activity_20_could_you",
+                      "type": "concept",
+                      "title": "Could you ...?",
+                      "explanation": "Use could you plus a base verb to ask another person to do something.",
+                      "key_points": ["Keep the main verb in its base form.", "Use please when it adds warmth, not in every sentence."],
+                      "examples": ["Could you check the time for me?", "Could you repeat that, please?"]
+                    },
+                    {
+                      "id": "activity_21_would_it_be_possible",
+                      "type": "concept",
+                      "title": "Would it be possible ...?",
+                      "explanation": "Use this longer frame for a careful request, especially when the request may inconvenience someone.",
+                      "key_points": ["Follow it with to plus a base verb.", "The phrase is polite but should remain concise."],
+                      "examples": ["Would it be possible to move the appointment?", "Would it be possible to call me later?"]
+                    },
+                    {
+                      "id": "activity_22_request_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which request is grammatically correct and polite?",
+                      "options": [
+                        {"id": "a", "text": "Could you to repeat that?"},
+                        {"id": "b", "text": "Could you repeat that?"},
+                        {"id": "c", "text": "Could repeat you that?"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "Could you is followed by the base form repeat, without to."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_07_p_b_contrast",
+                "sequence": 3,
+                "type": "pronunciation",
+                "title": "The /p/ and /b/ contrast",
+                "description": "Use airflow and voicing to keep similar words distinct.",
+                "estimated_minutes": 15,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Release /p/ with a puff of air", "Keep /b/ voiced with less aspiration"],
+                "skill_ids": ["pronunciation.phone.P", "pronunciation.phone.B"],
+                "required_lesson_ids": ["lesson_06_polite_requests"],
+                "personalization_reason": "The /p/–/b/ contrast is a useful Arabic-L1 priority because substitutions can change word meaning.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "l1:Arabic", "phone:P", "phone:B"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Hold a small piece of paper in front of your mouth: /p/ should move it more strongly than /b/.",
+                  "activities": [
+                    {
+                      "id": "activity_23_p_sound",
+                      "type": "pronunciation_drill",
+                      "title": "Airflow for /p/",
+                      "target_ipa": "/p/",
+                      "instructions": "Close both lips, build air pressure, then release it without voicing.",
+                      "tips": ["Check for a small puff of air.", "Do not add a vowel before the consonant."],
+                      "practice_items": [
+                        {"text": "park", "ipa": "/pɑːrk/"},
+                        {"text": "appointment", "ipa": "/əˈpɔɪntmənt/"},
+                        {"text": "copy", "ipa": "/ˈkɑːpi/"}
+                      ]
+                    },
+                    {
+                      "id": "activity_24_b_sound",
+                      "type": "pronunciation_drill",
+                      "title": "Voicing for /b/",
+                      "target_ipa": "/b/",
+                      "instructions": "Close both lips and release them while your vocal folds vibrate.",
+                      "tips": ["Touch your throat to feel voicing.", "Use less air than for /p/."],
+                      "practice_items": [
+                        {"text": "bark", "ipa": "/bɑːrk/"},
+                        {"text": "booking", "ipa": "/ˈbʊkɪŋ/"},
+                        {"text": "lobby", "ipa": "/ˈlɑːbi/"}
+                      ]
+                    },
+                    {
+                      "id": "activity_25_pb_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which sound is normally released with a stronger puff of air at the start of an English word?",
+                      "options": [
+                        {"id": "a", "text": "/p/"},
+                        {"id": "b", "text": "/b/"},
+                        {"id": "c", "text": "Both are identical"}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "Initial English /p/ is normally aspirated, while /b/ is voiced and less strongly aspirated."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_08_daily_checkpoint",
+                "sequence": 4,
+                "type": "assessment",
+                "title": "Everyday conversation checkpoint",
+                "description": "Review requests, appointments, and /p/–/b/ awareness.",
+                "estimated_minutes": 10,
+                "xp": 40,
+                "completion_policy": {"mode": "minimum_score", "minimum_score": 70},
+                "objectives": ["Use this week's language accurately in short situations"],
+                "skill_ids": ["vocabulary.daily.appointments", "grammar.modals.requests", "pronunciation.phone.P", "pronunciation.phone.B"],
+                "required_lesson_ids": ["lesson_07_p_b_contrast"],
+                "personalization_reason": "This checkpoint combines form and meaning instead of testing isolated definitions only.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:daily-life", "activity:assessment"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Choose the response that would work in a real service conversation.",
+                  "activities": [
+                    {
+                      "id": "activity_26_daily_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "You need a different appointment time. Which sentence is best?",
+                      "options": [
+                        {"id": "a", "text": "Could I reschedule my appointment?"},
+                        {"id": "b", "text": "I reschedule now."},
+                        {"id": "c", "text": "Could I appointment?"}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "The sentence combines the correct verb with a polite request frame."
+                    },
+                    {
+                      "id": "activity_27_daily_blank",
+                      "type": "fill_blank",
+                      "prompt": "Would it be possible _____ move the meeting to Tuesday?",
+                      "accepted_answers": ["to"],
+                      "explanation": "Would it be possible is followed by to plus the base verb."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "week_03",
+        "sequence": 3,
+        "title": "English at work",
+        "description": "Report progress, clarify problems, and contrast /f/ with /v/.",
+        "objectives": [
+          "Use common project vocabulary",
+          "Connect past actions to the present",
+          "Maintain voicing in /v/"
+        ],
+        "units": [
+          {
+            "id": "unit_03_work",
+            "sequence": 1,
+            "title": "Projects and problem solving",
+            "description": "Communicate progress and ask for clarification in a professional setting.",
+            "objectives": ["Give a concise update", "Describe a recent result", "Distinguish fan from van"],
+            "lessons": [
+              {
+                "id": "lesson_09_project_words",
+                "sequence": 1,
+                "type": "vocabulary",
+                "title": "Project vocabulary",
+                "description": "Learn reusable words for discussing tasks and problems.",
+                "estimated_minutes": 15,
+                "xp": 20,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Discuss deadlines, priorities, and solutions"],
+                "skill_ids": ["vocabulary.work.projects", "communication.work"],
+                "required_lesson_ids": ["lesson_08_daily_checkpoint"],
+                "personalization_reason": "Workplace English supports your goal of speaking more confidently in practical conversations.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:work", "skill:vocabulary", "interest:technology"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "These words are useful in both technical and non-technical projects.",
+                  "activities": [
+                    {
+                      "id": "activity_28_deadline",
+                      "type": "vocabulary_card",
+                      "word": "deadline",
+                      "part_of_speech": "noun",
+                      "ipa": "/ˈdedlaɪn/",
+                      "definition": "The latest time by which a task must be completed.",
+                      "examples": ["We can still meet the Friday deadline."],
+                      "collocations": ["meet a deadline", "miss a deadline", "tight deadline"]
+                    },
+                    {
+                      "id": "activity_29_priority",
+                      "type": "vocabulary_card",
+                      "word": "priority",
+                      "part_of_speech": "noun",
+                      "ipa": "/praɪˈɔːrəti/",
+                      "definition": "A task or goal that is more important than others.",
+                      "examples": ["Fixing the login issue is our first priority."],
+                      "collocations": ["top priority", "set priorities", "first priority"]
+                    },
+                    {
+                      "id": "activity_30_troubleshoot",
+                      "type": "vocabulary_card",
+                      "word": "troubleshoot",
+                      "part_of_speech": "verb",
+                      "ipa": "/ˈtrʌbəlʃuːt/",
+                      "definition": "To identify and solve the cause of a problem.",
+                      "examples": ["We are troubleshooting the connection problem."],
+                      "collocations": ["troubleshoot an issue", "troubleshoot a device"]
+                    },
+                    {
+                      "id": "activity_31_project_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which verb means finding and fixing the cause of a technical problem?",
+                      "options": [
+                        {"id": "a", "text": "prioritize"},
+                        {"id": "b", "text": "troubleshoot"},
+                        {"id": "c", "text": "reschedule"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "To troubleshoot is to investigate and solve a problem."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_10_present_perfect",
+                "sequence": 2,
+                "type": "grammar",
+                "title": "Reporting recent progress",
+                "description": "Use the present perfect when a past action matters now.",
+                "estimated_minutes": 20,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Form the present perfect", "Choose it for current results and unfinished time"],
+                "skill_ids": ["grammar.present-perfect.results", "communication.work.updates"],
+                "required_lesson_ids": ["lesson_09_project_words"],
+                "personalization_reason": "Project updates often focus on what has been completed and what remains.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:work", "grammar:present-perfect"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Use have or has plus the past participle when the result is connected to now.",
+                  "activities": [
+                    {
+                      "id": "activity_32_present_perfect_form",
+                      "type": "concept",
+                      "title": "Current result",
+                      "explanation": "The present perfect highlights a completed action whose result is important now.",
+                      "key_points": ["Use have with I, you, we, and they.", "Use has with he, she, and it."],
+                      "examples": ["We have fixed the login issue.", "She has completed the report."]
+                    },
+                    {
+                      "id": "activity_33_unfinished_time",
+                      "type": "concept",
+                      "title": "Unfinished time",
+                      "explanation": "Use the present perfect for actions during a time period that has not finished.",
+                      "key_points": ["Common frames include today, this week, and so far."],
+                      "examples": ["I have answered six emails today.", "We have finished two tasks this week."]
+                    },
+                    {
+                      "id": "activity_34_perfect_blank",
+                      "type": "fill_blank",
+                      "prompt": "The team _____ fixed the connection problem.",
+                      "accepted_answers": ["has"],
+                      "explanation": "Team is treated as singular here, so use has plus fixed."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_11_f_v_contrast",
+                "sequence": 3,
+                "type": "pronunciation",
+                "title": "The /f/ and /v/ contrast",
+                "description": "Keep continuous air for both sounds and add voicing for /v/.",
+                "estimated_minutes": 15,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Produce /f/ without voicing", "Sustain vocal-fold vibration through /v/"],
+                "skill_ids": ["pronunciation.phone.F", "pronunciation.phone.V"],
+                "required_lesson_ids": ["lesson_10_present_perfect"],
+                "personalization_reason": "This contrast is worth explicit practice because /v/ is absent from some Arabic sound systems.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "l1:Arabic", "phone:F", "phone:V"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "For both sounds, touch the lower lip lightly to the upper teeth and let air continue.",
+                  "activities": [
+                    {
+                      "id": "activity_35_f_sound",
+                      "type": "pronunciation_drill",
+                      "title": "Voiceless /f/",
+                      "target_ipa": "/f/",
+                      "instructions": "Keep the airflow continuous without vibration in your throat.",
+                      "tips": ["Do not close both lips.", "Hold the sound briefly to check the airflow."],
+                      "practice_items": [
+                        {"text": "fan", "ipa": "/fæn/"},
+                        {"text": "finish", "ipa": "/ˈfɪnɪʃ/"},
+                        {"text": "safe", "ipa": "/seɪf/"}
+                      ]
+                    },
+                    {
+                      "id": "activity_36_v_sound",
+                      "type": "pronunciation_drill",
+                      "title": "Voiced /v/",
+                      "target_ipa": "/v/",
+                      "instructions": "Use the same lip and teeth position while adding steady vibration.",
+                      "tips": ["Touch your throat to verify voicing.", "Avoid turning /v/ into the stop /b/."],
+                      "practice_items": [
+                        {"text": "van", "ipa": "/væn/"},
+                        {"text": "very", "ipa": "/ˈveri/"},
+                        {"text": "save", "ipa": "/seɪv/"}
+                      ]
+                    },
+                    {
+                      "id": "activity_37_fv_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "What is the main articulatory difference between /f/ and /v/?",
+                      "options": [
+                        {"id": "a", "text": "/v/ uses voicing"},
+                        {"id": "b", "text": "/f/ uses both lips"},
+                        {"id": "c", "text": "/v/ stops the airflow completely"}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "The mouth position is similar, but /v/ adds vocal-fold vibration."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_12_work_checkpoint",
+                "sequence": 4,
+                "type": "assessment",
+                "title": "Work update checkpoint",
+                "description": "Check your ability to give a short, accurate project update.",
+                "estimated_minutes": 10,
+                "xp": 40,
+                "completion_policy": {"mode": "minimum_score", "minimum_score": 70},
+                "objectives": ["Combine project vocabulary with recent-result grammar"],
+                "skill_ids": ["vocabulary.work.projects", "grammar.present-perfect.results", "pronunciation.phone.F", "pronunciation.phone.V"],
+                "required_lesson_ids": ["lesson_11_f_v_contrast"],
+                "personalization_reason": "The checkpoint rehearses the concise updates used in real meetings.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "topic:work", "activity:assessment"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Read each situation as if you were giving an update to a colleague.",
+                  "activities": [
+                    {
+                      "id": "activity_38_work_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which update emphasizes a useful result now?",
+                      "options": [
+                        {"id": "a", "text": "We have fixed the main issue."},
+                        {"id": "b", "text": "We fixing the main issue."},
+                        {"id": "c", "text": "We has fix the main issue."}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "Have fixed is the correct present-perfect form for we."
+                    },
+                    {
+                      "id": "activity_39_work_blank",
+                      "type": "fill_blank",
+                      "prompt": "Finishing the urgent task is our top _____.",
+                      "accepted_answers": ["priority"],
+                      "explanation": "A top priority is the task judged most important."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "week_04",
+        "sequence": 4,
+        "title": "Speak in connected ideas",
+        "description": "Organize longer answers and make important words easier to hear.",
+        "objectives": [
+          "Use signposting expressions",
+          "Link contrasting and supporting ideas",
+          "Apply word stress and manageable thought groups"
+        ],
+        "units": [
+          {
+            "id": "unit_04_confident_speaking",
+            "sequence": 1,
+            "title": "Clear longer answers",
+            "description": "Move from correct sentences to organized, listener-friendly speech.",
+            "objectives": ["Structure an opinion", "Connect ideas accurately", "Highlight key information"],
+            "lessons": [
+              {
+                "id": "lesson_13_signposting_words",
+                "sequence": 1,
+                "type": "vocabulary",
+                "title": "Signposting expressions",
+                "description": "Guide the listener through an explanation or opinion.",
+                "estimated_minutes": 15,
+                "xp": 20,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Introduce, add, and conclude an idea clearly"],
+                "skill_ids": ["discourse.signposting", "communication.extended-turn"],
+                "required_lesson_ids": ["lesson_12_work_checkpoint"],
+                "personalization_reason": "Reusable signposts make longer answers easier to produce and easier to follow.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "skill:discourse", "function:opinion"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Use signposts selectively; one clear phrase is better than several fillers.",
+                  "activities": [
+                    {
+                      "id": "activity_40_in_my_view",
+                      "type": "vocabulary_card",
+                      "word": "in my view",
+                      "part_of_speech": "discourse phrase",
+                      "ipa": "/ɪn maɪ vjuː/",
+                      "definition": "A phrase used to introduce your opinion.",
+                      "examples": ["In my view, remote work is useful for focused tasks."],
+                      "collocations": ["in my view", "from my point of view"]
+                    },
+                    {
+                      "id": "activity_41_for_example",
+                      "type": "vocabulary_card",
+                      "word": "for example",
+                      "part_of_speech": "discourse phrase",
+                      "ipa": "/fɔːr ɪɡˈzæmpəl/",
+                      "definition": "A phrase used to introduce evidence or an illustration.",
+                      "examples": ["Some tools save time. For example, templates reduce repeated work."],
+                      "collocations": ["for example", "a good example"]
+                    },
+                    {
+                      "id": "activity_42_overall",
+                      "type": "vocabulary_card",
+                      "word": "overall",
+                      "part_of_speech": "adverb",
+                      "ipa": "/ˌoʊvərˈɔːl/",
+                      "definition": "Considering everything; used to introduce a general conclusion.",
+                      "examples": ["Overall, the project was successful despite the delay."],
+                      "collocations": ["overall result", "overall impression", "overall, I think"]
+                    },
+                    {
+                      "id": "activity_43_signpost_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which expression naturally introduces a concluding judgment?",
+                      "options": [
+                        {"id": "a", "text": "For example"},
+                        {"id": "b", "text": "Overall"},
+                        {"id": "c", "text": "Could you"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "Overall introduces a conclusion based on all the information discussed."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_14_linking_ideas",
+                "sequence": 2,
+                "type": "grammar",
+                "title": "Linking contrast and reason",
+                "description": "Connect ideas without producing overly long sentences.",
+                "estimated_minutes": 20,
+                "xp": 25,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Use although for contrast", "Use because to give a reason"],
+                "skill_ids": ["grammar.linkers.contrast", "grammar.linkers.reason"],
+                "required_lesson_ids": ["lesson_13_signposting_words"],
+                "personalization_reason": "Clear connectors help turn short answers into organized B1–B2 responses.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "grammar:linkers", "skill:discourse"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Choose one connector that matches the relationship between the ideas.",
+                  "activities": [
+                    {
+                      "id": "activity_44_although",
+                      "type": "concept",
+                      "title": "Contrast with although",
+                      "explanation": "Although introduces an idea that contrasts with the main result.",
+                      "key_points": ["Although is followed by a complete clause.", "Do not add but to the same two-clause pattern."],
+                      "examples": ["Although the task was difficult, we finished it on time."]
+                    },
+                    {
+                      "id": "activity_45_because",
+                      "type": "concept",
+                      "title": "Reason with because",
+                      "explanation": "Because introduces the reason for a situation or opinion.",
+                      "key_points": ["Because is followed by a subject and verb.", "Keep the reason close to the claim it supports."],
+                      "examples": ["I prefer the morning flight because it arrives before noon."]
+                    },
+                    {
+                      "id": "activity_46_linker_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "_____ the call was short, we solved the problem.",
+                      "options": [
+                        {"id": "a", "text": "Because"},
+                        {"id": "b", "text": "Although"},
+                        {"id": "c", "text": "For example"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "Although marks the contrast between the short call and the successful result."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_15_stress_thought_groups",
+                "sequence": 3,
+                "type": "pronunciation",
+                "title": "Stress and thought groups",
+                "description": "Make key words prominent and divide longer sentences into manageable groups.",
+                "estimated_minutes": 20,
+                "xp": 30,
+                "completion_policy": {"mode": "finish"},
+                "objectives": ["Stress content words", "Pause at meaning boundaries rather than after every word"],
+                "skill_ids": ["pronunciation.word-stress", "prosody.thought-groups"],
+                "required_lesson_ids": ["lesson_14_linking_ideas"],
+                "personalization_reason": "Sentence-level clarity depends on rhythm and grouping as well as individual consonants.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "skill:prosody", "skill:pronunciation", "l1:Arabic"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "Capital letters below indicate the important word, not shouting. A slash marks a natural thought-group boundary.",
+                  "activities": [
+                    {
+                      "id": "activity_47_word_stress",
+                      "type": "pronunciation_drill",
+                      "title": "Prominent content words",
+                      "target_ipa": "sentence stress",
+                      "instructions": "Make the important noun, verb, adjective, or adverb slightly longer and clearer than surrounding function words.",
+                      "tips": ["Do not stress every word equally.", "Choose the word that carries the new information."],
+                      "practice_items": [
+                        {"text": "We fixed the MAIN issue.", "ipa": "main carries prominence"},
+                        {"text": "The flight leaves on FRIDAY.", "ipa": "Friday carries prominence"}
+                      ]
+                    },
+                    {
+                      "id": "activity_48_thought_groups",
+                      "type": "pronunciation_drill",
+                      "title": "Meaningful groups",
+                      "target_ipa": "thought groups",
+                      "instructions": "Group words that belong together, then use a brief boundary before the next idea.",
+                      "tips": ["Avoid pausing between an article and its noun.", "Use the boundary to prepare the next idea, not to take a dramatic breath."],
+                      "practice_items": [
+                        {"text": "Although the task was difficult / we finished on time.", "ipa": "contrast clause / result clause"},
+                        {"text": "In my view / the morning flight is better.", "ipa": "signpost / opinion"}
+                      ]
+                    },
+                    {
+                      "id": "activity_49_stress_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "What usually happens to the word carrying new information?",
+                      "options": [
+                        {"id": "a", "text": "It becomes less clear"},
+                        {"id": "b", "text": "It receives more prominence"},
+                        {"id": "c", "text": "It must be followed by a long pause"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "New or contrastive information commonly receives greater prominence."
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "lesson_16_final_checkpoint",
+                "sequence": 4,
+                "type": "assessment",
+                "title": "Real-life communication checkpoint",
+                "description": "Review the language choices that support a clear extended answer.",
+                "estimated_minutes": 15,
+                "xp": 60,
+                "completion_policy": {"mode": "minimum_score", "minimum_score": 70},
+                "objectives": ["Organize and support a practical opinion"],
+                "skill_ids": ["discourse.signposting", "grammar.linkers.contrast", "prosody.thought-groups"],
+                "required_lesson_ids": ["lesson_15_stress_thought_groups"],
+                "personalization_reason": "The final checkpoint combines skills across the plan instead of measuring one isolated rule.",
+                "grounding": {
+                  "origin": "curated_mock",
+                  "review_status": "prototype",
+                  "retrieval_tags": ["cefr:B1", "activity:assessment", "skill:integrated-speaking"],
+                  "source_refs": []
+                },
+                "content": {
+                  "intro": "This mock checkpoint tests language awareness. A future speaking task can add live delivery evidence when an expected prompt is defined.",
+                  "activities": [
+                    {
+                      "id": "activity_50_final_mcq",
+                      "type": "multiple_choice",
+                      "prompt": "Which response is best organized?",
+                      "options": [
+                        {"id": "a", "text": "In my view, the morning flight is better because it arrives early."},
+                        {"id": "b", "text": "Morning flight better arrive early because."},
+                        {"id": "c", "text": "Because although morning flight overall."}
+                      ],
+                      "correct_option_id": "a",
+                      "explanation": "The response introduces an opinion and supports it with a clear reason."
+                    },
+                    {
+                      "id": "activity_51_final_blank",
+                      "type": "fill_blank",
+                      "prompt": "_____ the deadline was tight, the team completed the project.",
+                      "accepted_answers": ["although"],
+                      "explanation": "Although introduces the contrast between the difficult condition and successful result."
+                    },
+                    {
+                      "id": "activity_52_final_signpost",
+                      "type": "multiple_choice",
+                      "prompt": "Which phrase should introduce a general conclusion?",
+                      "options": [
+                        {"id": "a", "text": "Could you"},
+                        {"id": "b", "text": "Overall"},
+                        {"id": "c", "text": "A layover"}
+                      ],
+                      "correct_option_id": "b",
+                      "explanation": "Overall signals that you are giving a conclusion based on the whole discussion."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "learner_snapshot": {
+    "native_language": "Arabic",
+    "learning_goals": ["Speak confidently", "Travel independently", "Communicate at work"],
+    "interests": ["Technology", "Travel"],
+    "preferred_contexts": ["Real-life conversations", "Short focused lessons"],
+    "pronunciation_priorities": ["TH sounds", "P and B", "F and V", "Sentence stress"]
+  },
+  "progress": {
+    "current_lesson_id": "lesson_02_future_plans",
+    "current_streak_days": 3,
+    "longest_streak_days": 5,
+    "weekly_goal_days": 5,
+    "studied_dates_this_week": ["2026-07-13", "2026-07-14"],
+    "lesson_states": {
+      "lesson_01_airport_words": {
+        "status": "completed",
+        "progress_fraction": 1.0,
+        "best_score": 88,
+        "attempts": 1,
+        "completed_at": "2026-07-14T18:30:00Z"
+      },
+      "lesson_02_future_plans": {
+        "status": "in_progress",
+        "progress_fraction": 0.0,
+        "best_score": null,
+        "attempts": 0,
+        "completed_at": null
+      }
+    }
+  },
+  "knowledge_sources": []
+}

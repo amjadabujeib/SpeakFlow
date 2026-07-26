@@ -1,7 +1,7 @@
 // lib/features/shell/main_shell.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/providers/app_state.dart';
 import '../../shared/widgets/settings_drawer.dart';
@@ -29,18 +29,19 @@ class _MainShellState extends State<MainShell> {
   @override
   void dispose() {
     _appState.removeListener(_onStateChanged);
-    _appState.dispose();
     super.dispose();
   }
 
   void _onStateChanged() {
-    setState(() {});
+    if (mounted) {
+      setState(() => _selectedIndex = _appState.currentTab);
+    }
   }
 
   static const _tabs = ['/home', '/practice', '/chat', '/news'];
 
   void _onTabTapped(int index) {
-    setState(() => _selectedIndex = index);
+    _appState.setTab(index);
     context.go(_tabs[index]);
   }
 
@@ -53,99 +54,53 @@ class _MainShellState extends State<MainShell> {
     final isDark = _appState.isDarkMode;
     final bg = isDark ? AppColors.background : AppColors.lightBackground;
     final navBg = isDark ? AppColors.navBackground : AppColors.lightSurface;
-    final textPrimary = isDark ? AppColors.textPrimary : AppColors.lightTextPrimary;
-    final textSecondary = isDark ? AppColors.textSecondary : AppColors.lightTextSecondary;
 
     return AnimatedTheme(
       data: isDark
-          ? ThemeData.dark().copyWith(
-              scaffoldBackgroundColor: bg,
-            )
-          : ThemeData.light().copyWith(
-              scaffoldBackgroundColor: bg,
-            ),
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: bg)
+          : ThemeData.light().copyWith(scaffoldBackgroundColor: bg),
       child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: bg,
         endDrawer: SettingsDrawer(appState: _appState),
         endDrawerEnableOpenDragGesture: false,
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: _buildAppBar(textPrimary, textSecondary, isDark),
-        ),
-        body: MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(_appState.fontSize),
-          ),
-          child: widget.child,
-        ),
-        bottomNavigationBar: _buildBottomNav(navBg, isDark),
-      ),
-    );
-  }
-
-  Widget _buildAppBar(Color textPrimary, Color textSecondary, bool isDark) {
-    final titles = ['JustTalk', 'Practice', 'Chat', 'News'];
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.background : AppColors.lightBackground,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? AppColors.border : AppColors.lightBorder,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
+        body: SafeArea(
+          bottom: false,
+          child: Column(
             children: [
-              if (_selectedIndex == 0) ...[
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+              SizedBox(
+                height: 48,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: 'Settings',
+                    onPressed: _openSettings,
+                    icon: Icon(
+                      Icons.tune_rounded,
+                      color: isDark
+                          ? AppColors.textSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.record_voice_over_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                titles[_selectedIndex],
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: textPrimary,
-                  letterSpacing: -0.3,
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                onPressed: _openSettings,
-                icon: Icon(
-                  Icons.tune_rounded,
-                  color: textSecondary,
-                  size: 22,
+              Expanded(
+                child: MediaQuery(
+                  data: MediaQuery.of(context)
+                      .removePadding(removeTop: true)
+                      .copyWith(
+                        textScaler: TextScaler.linear(_appState.fontSize),
+                      ),
+                  child: KeyedSubtree(
+                    key: ValueKey(_appState.planRefreshToken),
+                    child: widget.child,
+                  ),
                 ),
               ),
             ],
           ),
         ),
+        bottomNavigationBar: _buildBottomNav(navBg, isDark),
       ),
     );
   }
@@ -221,7 +176,9 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeColor = AppColors.primary;
-    final inactiveColor = isDark ? AppColors.textSecondary : AppColors.lightTextSecondary;
+    final inactiveColor = isDark
+        ? AppColors.textSecondary
+        : AppColors.lightTextSecondary;
 
     return Expanded(
       child: GestureDetector(
@@ -238,7 +195,7 @@ class _NavItem extends StatelessWidget {
                 height: 32,
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.primary.withOpacity(0.15)
+                      ? AppColors.primary.withValues(alpha: 0.15)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),

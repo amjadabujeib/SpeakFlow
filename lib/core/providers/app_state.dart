@@ -46,6 +46,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  int _planRefreshToken = 0;
+  int get planRefreshToken => _planRefreshToken;
+  void requestPlanRefresh() {
+    _planRefreshToken++;
+    notifyListeners();
+  }
+
   // Onboarding
   bool _onboardingComplete = false;
   bool get onboardingComplete => _onboardingComplete;
@@ -69,6 +76,7 @@ class AppState extends ChangeNotifier {
     _playingArticleId = id;
     notifyListeners();
   }
+
   void stopArticle() {
     _playingArticleId = null;
     notifyListeners();

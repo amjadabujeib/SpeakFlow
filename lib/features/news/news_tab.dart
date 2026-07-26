@@ -1,9 +1,10 @@
 // lib/features/news/news_tab.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../shared/widgets/dictionary_popup.dart';
 import '../../core/providers/app_state.dart';
+import '../../core/services/api_service.dart';
 
 // ---------------------------------------------------------------------------
 // Data model
@@ -27,94 +28,51 @@ class _Article {
     required this.readTime,
     required this.body,
   });
+
+  factory _Article.fromJson(
+    Map<String, dynamic> json, {
+    required String category,
+    required String level,
+  }) {
+    final summary = json['simplified_summary']?.toString().trim() ?? '';
+    return _Article(
+      id:
+          json['id']?.toString() ??
+          json['url']?.toString() ??
+          json['title'].toString(),
+      title: json['title']?.toString().trim() ?? '',
+      summary: summary,
+      category: category,
+      level: level,
+      readTime: '${json['read_time_minutes'] as int? ?? 1} min',
+      body: summary,
+    );
+  }
 }
 
-const List<_Article> _allArticles = [
-  _Article(
-    id: 'n1',
-    title: 'Scientists Discover New Deep-Sea Species',
-    summary:
-        'Marine biologists found a remarkable new species 3km below the ocean.',
-    category: 'Science',
-    level: 'B1',
-    readTime: '3 min',
-    body:
-        'A team of marine biologists working in the Pacific Ocean has made an exciting discovery. '
-        'At a depth of nearly 3 kilometres, they encountered a creature unlike anything previously documented. '
-        'The species, tentatively named Luminos profundus, emits a soft bioluminescent glow that pulses in a regular rhythm, '
-        'possibly used for communication or predator deterrence. Scientists used a remotely operated vehicle (ROV) equipped '
-        'with high-definition cameras to film the creature over a period of six hours. '
-        'Further samples are being analysed at the Woods Hole Oceanographic Institution. '
-        'Researchers believe the discovery underscores how much of the deep ocean remains unexplored and full of wonder.',
-  ),
-  _Article(
-    id: 'n2',
-    title: 'Global Travel Rebounds to Pre-Pandemic Levels',
-    summary:
-        'International tourism has fully recovered with record numbers this summer.',
-    category: 'Travel',
-    level: 'B2',
-    readTime: '4 min',
-    body:
-        'The tourism industry has officially bounced back. According to the United Nations World Tourism Organization, '
-        'international tourist arrivals surpassed pre-pandemic figures for the first time this summer, reaching 1.4 billion trips globally. '
-        'Europe remains the most visited region, accounting for over half of all arrivals. '
-        'Southeast Asia and the Middle East are among the fastest-growing destinations, driven by improved air connectivity and visa relaxation policies. '
-        'Airlines have responded by reinstating long-haul routes that were suspended during COVID-19. '
-        'However, the surge has reignited debates about overtourism, particularly in cities like Venice, Barcelona, and Kyoto, '
-        'where local governments are introducing new visitor caps and tourist taxes.',
-  ),
-  _Article(
-    id: 'n3',
-    title: 'AI Tools Are Changing Language Learning',
-    summary:
-        'Artificial intelligence is revolutionizing education, making personalized learning accessible.',
-    category: 'Technology',
-    level: 'A2',
-    readTime: '2 min',
-    body:
-        'Learning a new language is now easier than ever. New AI tools can listen to you speak and tell you what to improve. '
-        'They can also create lessons just for you, based on what you already know. '
-        'Many apps now use AI to make conversations feel real. You can practise talking with a computer that answers like a person. '
-        'Teachers say these tools help students feel less nervous. Students can make mistakes and learn from them without feeling embarrassed. '
-        'Experts believe AI will not replace human teachers but will help them. '
-        'In the future, everyone might have a personal AI language coach in their pocket.',
-  ),
-  _Article(
-    id: 'n4',
-    title: 'Plant-Based Foods Rise in Global Restaurants',
-    summary:
-        'More restaurants are adding vegan options as demand grows worldwide.',
-    category: 'Food',
-    level: 'A2',
-    readTime: '3 min',
-    body:
-        'Plant-based food is becoming very popular. Restaurants around the world are adding more vegan options to their menus. '
-        'Big fast-food chains now sell burgers made from plants instead of meat. Many people say they taste just like real meat. '
-        'Why are people choosing plant-based food? Some do it for their health. Others do it to help the environment. '
-        'Growing plants uses less water and produces less pollution than raising animals. '
-        'Chefs are getting creative with ingredients like tofu, lentils, jackfruit, and chickpeas. '
-        'Even in countries where meat is very traditional, plant-based options are growing fast. '
-        'Industry experts predict the plant-based market will double in size over the next five years.',
-  ),
-  _Article(
-    id: 'n5',
-    title: 'Record Heatwave Hits Southern Europe',
-    summary:
-        'Spain, Italy and Greece reach all-time high temperatures with health warnings issued.',
-    category: 'Environment',
-    level: 'B1',
-    readTime: '4 min',
-    body:
-        'Southern Europe is experiencing its hottest summer on record. Temperatures in Spain, Italy, and Greece have broken previous highs, '
-        'with some cities recording over 47 degrees Celsius. Authorities have issued health warnings urging residents to stay indoors during peak hours. '
-        'Hospitals have reported a rise in heat-related illnesses, particularly among the elderly. '
-        'Wildfires have broken out in several regions, forcing evacuations in coastal tourist areas. '
-        'Climate scientists say this heatwave is consistent with predictions for a warming planet. '
-        'The EU has activated its emergency coordination mechanism, releasing funds for firefighting and cooling centres. '
-        'Environmental groups are calling on governments to accelerate the transition to renewable energy and reduce carbon emissions.',
-  ),
+class _NewsCategory {
+  final String label;
+  final String value;
+
+  const _NewsCategory(this.label, this.value);
+}
+
+const _newsCategories = [
+  _NewsCategory('Top', 'general'),
+  _NewsCategory('Business', 'business'),
+  _NewsCategory('Entertainment', 'entertainment'),
+  _NewsCategory('Health', 'health'),
+  _NewsCategory('Science', 'science'),
+  _NewsCategory('Sports', 'sports'),
+  _NewsCategory('Technology', 'technology'),
 ];
+
+typedef NewsLoader =
+    Future<Map<String, dynamic>> Function({
+      required String category,
+      required String level,
+      int page,
+    });
 
 // ---------------------------------------------------------------------------
 // Colour constants (local, mirrors the spec)
@@ -135,14 +93,16 @@ Color _categoryColor(String category) {
   switch (category) {
     case 'Science':
       return _kSuccess; // green
-    case 'Travel':
+    case 'Sports':
       return _kWarning; // orange
     case 'Technology':
       return _kPrimary; // blue
-    case 'Food':
+    case 'Business':
       return const Color(0xFFFBBF24); // amber
-    case 'Environment':
+    case 'Health':
       return const Color(0xFF14B8A6); // teal
+    case 'Entertainment':
+      return _kAccent;
     default:
       return _kPrimary;
   }
@@ -153,7 +113,9 @@ Color _categoryColor(String category) {
 // ---------------------------------------------------------------------------
 
 class NewsTab extends StatefulWidget {
-  const NewsTab({super.key});
+  final NewsLoader? loader;
+
+  const NewsTab({super.key, this.loader});
 
   @override
   State<NewsTab> createState() => _NewsTabState();
@@ -161,7 +123,14 @@ class NewsTab extends StatefulWidget {
 
 class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   final AppState _appState = AppState();
+  List<_Article> _articles = const [];
   String? _playingArticleId;
+  String? _error;
+  bool _isLoading = true;
+  int _requestSerial = 0;
+  String _loadedLevel = '';
+  _NewsCategory _selectedCategory = _newsCategories.first;
+  final Map<String, int> _categoryPages = {};
 
   // Mini-player slide controller
   late final AnimationController _playerSlideController;
@@ -173,40 +142,22 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   // Progress value for fake slider
   double _progress = 0.35;
 
-  String _selectedFilter = 'All';
-  final List<String> _filters = [
-    'All',
-    'Science',
-    'Travel',
-    'Technology',
-    'Food',
-    'Environment',
-  ];
-
-  List<_Article> get _filteredArticles {
-    return _allArticles.where((a) {
-      final matchesLevel = a.level == _appState.cefrLevel;
-      bool matchesFilter = false;
-      if (_selectedFilter == 'All') {
-        matchesFilter = true;
-      } else {
-        matchesFilter = a.category.toLowerCase() == _selectedFilter.toLowerCase();
-      }
-      return matchesLevel && matchesFilter;
-    }).toList();
-  }
-
   _Article? get _playingArticle {
     if (_playingArticleId == null) return null;
     try {
-      return _allArticles.firstWhere((a) => a.id == _playingArticleId);
+      return _articles.firstWhere((a) => a.id == _playingArticleId);
     } catch (_) {
       return null;
     }
   }
 
   void _onStateChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (_loadedLevel != _appState.cefrLevel) {
+      _loadNews(resetPage: true);
+    } else {
+      setState(() {});
+    }
   }
 
   @override
@@ -218,21 +169,21 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 380),
     );
-    _playerSlideAnim = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _playerSlideController,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
+    _playerSlideAnim =
+        Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _playerSlideController,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
 
     _eqController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+
+    _loadNews(resetPage: true);
   }
 
   @override
@@ -266,6 +217,82 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     });
   }
 
+  Future<void> _loadNews({
+    bool resetPage = false,
+    bool nextPage = false,
+  }) async {
+    final request = ++_requestSerial;
+    final category = _selectedCategory;
+    final previousPage = _categoryPages[category.value] ?? 1;
+    final page = resetPage ? 1 : (nextPage ? previousPage + 1 : previousPage);
+    final level = _appState.cefrLevel;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _playingArticleId = null;
+    });
+    _playerSlideController.reverse();
+    try {
+      final payload = await (widget.loader ?? ApiService.getNews)(
+        category: category.value,
+        level: level,
+        page: page,
+      );
+      if (!mounted || request != _requestSerial) return;
+      final rawArticles = payload['articles'] as List<dynamic>? ?? const [];
+      final articles = rawArticles
+          .whereType<Map>()
+          .map(
+            (item) => _Article.fromJson(
+              Map<String, dynamic>.from(item),
+              category: category.label,
+              level: level,
+            ),
+          )
+          .where(
+            (article) => article.title.isNotEmpty && article.body.isNotEmpty,
+          )
+          .toList(growable: false);
+      if (articles.isEmpty && nextPage && _articles.isNotEmpty) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No more ${category.label.toLowerCase()} stories right now.',
+            ),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _articles = articles;
+        _categoryPages[category.value] = page;
+        _loadedLevel = level;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _requestSerial) return;
+      if (_articles.isNotEmpty && nextPage) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not refresh the news: $error')),
+        );
+      } else {
+        setState(() {
+          _articles = const [];
+          _error = '$error';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _selectCategory(_NewsCategory category) {
+    if (category.value == _selectedCategory.value) return;
+    setState(() => _selectedCategory = category);
+    _loadNews(resetPage: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -276,29 +303,50 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // Header
-              SliverToBoxAdapter(
-                child: _buildHeader(),
-              ),
-
               // Filter chips
               SliverToBoxAdapter(
-                child: _buildFilterChips(),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _buildFilterChips(),
+                  ),
+                ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-              // Article cards
+              if (_isLoading)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 80),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                )
+              else if (_error != null)
+                SliverToBoxAdapter(child: _buildErrorState())
+              else if (_articles.isEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(28, 80, 28, 0),
+                    child: Text(
+                      'No stories are available in this category right now.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _kTextSecondary, height: 1.4),
+                    ),
+                  ),
+                ),
+
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final article = _filteredArticles[index];
+                    final article = _articles[index];
                     return _ArticleCard(
-                      key: ValueKey(article.id),
-                      article: article,
-                      isPlaying: _playingArticleId == article.id,
-                      onPlayToggle: () => _togglePlay(article.id),
-                    )
+                          key: ValueKey(article.id),
+                          article: article,
+                          isPlaying: _playingArticleId == article.id,
+                          onPlayToggle: () => _togglePlay(article.id),
+                        )
                         .animate()
                         .fadeIn(
                           delay: Duration(milliseconds: 60 * index),
@@ -312,7 +360,9 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                           curve: Curves.easeOutCubic,
                         );
                   },
-                  childCount: _filteredArticles.length,
+                  childCount: _isLoading || _error != null
+                      ? 0
+                      : _articles.length,
                 ),
               ),
 
@@ -342,96 +392,112 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     );
   }
 
-  // ── Header ───────────────────────────────────────────────────────────────
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Daily News 📰',
-            style: GoogleFonts.inter(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: _kTextPrimary,
-              letterSpacing: -0.3,
-            ),
-          ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0),
-          const SizedBox(height: 4),
-          Text(
-            'Tailored to your level & interests',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: _kTextSecondary,
-              fontWeight: FontWeight.w400,
-            ),
-          ).animate().fadeIn(delay: 80.ms, duration: 300.ms),
-        ],
-      ),
-    );
-  }
-
   // ── Filter chips ─────────────────────────────────────────────────────────
 
   Widget _buildFilterChips() {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemCount: _filters.length,
-        itemBuilder: (context, i) {
-          final filter = _filters[i];
-          final selected = filter == _selectedFilter;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedFilter = filter),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: selected
-                    ? const LinearGradient(
-                        colors: [_kPrimary, _kAccent],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      )
-                    : null,
-                color: selected ? null : _kSurface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: selected
-                      ? Colors.transparent
-                      : _kBorder,
-                  width: 1,
-                ),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: _kPrimary.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Text(
-                filter,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.w500,
-                  color:
-                      selected ? Colors.white : _kTextSecondary,
-                ),
-              ),
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 44,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 20),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemCount: _newsCategories.length,
+              itemBuilder: (context, i) {
+                final category = _newsCategories[i];
+                final selected = category.value == _selectedCategory.value;
+                return GestureDetector(
+                  onTap: () => _selectCategory(category),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: selected
+                          ? const LinearGradient(
+                              colors: [_kPrimary, _kAccent],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            )
+                          : null,
+                      color: selected ? null : _kSurface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: selected ? Colors.transparent : _kBorder,
+                        width: 1,
+                      ),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: _kPrimary.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Text(
+                      category.label,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: selected ? Colors.white : _kTextSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'More ${_selectedCategory.label.toLowerCase()} news',
+          onPressed: _isLoading ? null : () => _loadNews(nextPage: true),
+          icon: _isLoading
+              ? const SizedBox(
+                  width: 19,
+                  height: 19,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh_rounded),
+          color: _kTextPrimary,
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildErrorState() {
+    final message = (_error ?? 'Could not load live news.').replaceFirst(
+      'Bad state: ',
+      '',
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 64, 28, 0),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: _kTextSecondary, size: 42),
+          const SizedBox(height: 14),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(color: _kTextSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => _loadNews(),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+          ),
+        ],
       ),
     );
   }
@@ -573,8 +639,7 @@ class _ArticleCardState extends State<_ArticleCard> {
       children: [
         // Category chip
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
             color: catColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
@@ -597,8 +662,7 @@ class _ArticleCardState extends State<_ArticleCard> {
 
         // Level badge
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: _kPrimary.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
@@ -620,18 +684,11 @@ class _ArticleCardState extends State<_ArticleCard> {
         const Spacer(),
 
         // Reading time
-        Icon(
-          Icons.access_time_rounded,
-          size: 13,
-          color: _kTextSecondary,
-        ),
+        Icon(Icons.access_time_rounded, size: 13, color: _kTextSecondary),
         const SizedBox(width: 4),
         Text(
           article.readTime,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: _kTextSecondary,
-          ),
+          style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary),
         ),
 
         // Expand indicator
@@ -660,11 +717,7 @@ class _ArticleCardState extends State<_ArticleCard> {
           height: 1,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                Colors.transparent,
-                _kBorder,
-                Colors.transparent,
-              ],
+              colors: [Colors.transparent, _kBorder, Colors.transparent],
             ),
           ),
         ),
@@ -674,11 +727,7 @@ class _ArticleCardState extends State<_ArticleCard> {
         // Hint
         Row(
           children: [
-            const Icon(
-              Icons.touch_app_rounded,
-              size: 13,
-              color: _kAccent,
-            ),
+            const Icon(Icons.touch_app_rounded, size: 13, color: _kAccent),
             const SizedBox(width: 5),
             Text(
               'Tap any word to look it up',
@@ -694,10 +743,7 @@ class _ArticleCardState extends State<_ArticleCard> {
         const SizedBox(height: 10),
 
         // Selectable body with per-word long-press
-        _WordTapText(
-          text: article.body,
-          onWordLongPress: _handleWordLongPress,
-        ),
+        _WordTapText(text: article.body, onWordLongPress: _handleWordLongPress),
       ],
     );
   }
@@ -705,18 +751,11 @@ class _ArticleCardState extends State<_ArticleCard> {
   Widget _buildBottomRow(_Article article) {
     return Row(
       children: [
-        const Icon(
-          Icons.menu_book_rounded,
-          size: 14,
-          color: _kTextSecondary,
-        ),
+        const Icon(Icons.menu_book_rounded, size: 14, color: _kTextSecondary),
         const SizedBox(width: 5),
         Text(
           '${article.readTime} read',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: _kTextSecondary,
-          ),
+          style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary),
         ),
 
         const Spacer(),
@@ -746,9 +785,7 @@ class _ArticleCardState extends State<_ArticleCard> {
               ],
             ),
             child: Icon(
-              widget.isPlaying
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
+              widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
               color: Colors.white,
               size: 22,
             ),
@@ -767,10 +804,7 @@ class _WordTapText extends StatelessWidget {
   final String text;
   final void Function(String word, Offset globalPosition) onWordLongPress;
 
-  const _WordTapText({
-    required this.text,
-    required this.onWordLongPress,
-  });
+  const _WordTapText({required this.text, required this.onWordLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -782,15 +816,16 @@ class _WordTapText extends StatelessWidget {
           final word = entry.value;
           return WidgetSpan(
             child: GestureDetector(
-              onLongPressStart: (details) {
-                // Strip punctuation for lookup
-                final clean =
-                    word.replaceAll(RegExp(r'[^\w]'), '');
+              onTapUp: (details) {
+                final clean = _cleanLookupWord(word);
                 if (clean.isNotEmpty) {
-                  onWordLongPress(
-                    clean,
-                    details.globalPosition,
-                  );
+                  onWordLongPress(clean, details.globalPosition);
+                }
+              },
+              onLongPressStart: (details) {
+                final clean = _cleanLookupWord(word);
+                if (clean.isNotEmpty) {
+                  onWordLongPress(clean, details.globalPosition);
                 }
               },
               child: Text(
@@ -808,6 +843,9 @@ class _WordTapText extends StatelessWidget {
       enableInteractiveSelection: true,
     );
   }
+
+  String _cleanLookupWord(String value) =>
+      value.replaceAll(RegExp(r"^[^A-Za-z']+|[^A-Za-z']+$"), '').trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -837,12 +875,7 @@ class _MiniPlayer extends StatelessWidget {
       height: 86,
       decoration: BoxDecoration(
         color: const Color(0xFF1A2235),
-        border: Border(
-          top: BorderSide(
-            color: Colors.transparent,
-            width: 0,
-          ),
-        ),
+        border: Border(top: BorderSide(color: Colors.transparent, width: 0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.6),

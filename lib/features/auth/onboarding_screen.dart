@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/services/api_service.dart';
 
 // Color constants
 const _background = Color(0xFF090E1A);
-const _surface = Color(0xFF111827);
 const _surfaceElevated = Color(0xFF1A2235);
 const _primary = Color(0xFF4F7FFF);
 const _accent = Color(0xFF8B5CF6);
@@ -21,39 +21,33 @@ const _levels = [
   {'level': 'A2', 'title': 'Elementary', 'desc': 'I handle simple conversations'},
   {'level': 'B1', 'title': 'Intermediate', 'desc': 'I manage most situations'},
   {'level': 'B2', 'title': 'Upper Intermediate', 'desc': 'I discuss complex topics'},
-  {'level': 'C1', 'title': 'Advanced', 'desc': 'I express myself fluently'},
-  {'level': 'C2', 'title': 'Mastery', 'desc': 'I understand everything'},
 ];
 
 const _goals = [
-  {'icon': '✈️', 'label': 'Travel & Tourism'},
-  {'icon': '💼', 'label': 'Business & Career'},
-  {'icon': '🎓', 'label': 'Academic Study'},
-  {'icon': '💬', 'label': 'Daily Conversation'},
-  {'icon': '🎬', 'label': 'Media & Entertainment'},
-  {'icon': '🌍', 'label': 'Immigration'},
+  {'icon': '💬', 'label': 'Speak confidently'},
+  {'icon': '✈️', 'label': 'Travel independently'},
+  {'icon': '💼', 'label': 'Communicate at work'},
+  {'icon': '🎓', 'label': 'Study in English'},
+  {'icon': '📝', 'label': 'Prepare for exams'},
 ];
 
 const _interests = [
   'Travel',
   'Business',
   'Technology',
-  'Food & Cooking',
   'Sports',
-  'Music',
   'Science',
-  'History',
-  'Health',
-  'Arts & Culture',
+  'Education',
+  'Culture',
+  'Daily life',
 ];
 
 const _languages = [
   'Arabic',
+  'Kurdish',
+  'Turkish',
   'French',
   'Spanish',
-  'German',
-  'Chinese',
-  'Japanese',
 ];
 
 // ─── Main Screen ───────────────────────────────────────────────────────────
@@ -82,6 +76,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // Step 4 – Mother tongue
   String? _selectedLanguage;
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -104,12 +99,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _next() {
-    if (!_canProceed) return;
+  Future<void> _next() async {
+    if (!_canProceed || _submitting) return;
     if (_step < _totalSteps - 1) {
       setState(() => _step++);
     } else {
-      context.go('/loading');
+      setState(() => _submitting = true);
+      try {
+        await ApiService.saveLearnerProfile({
+          'cefr_level': _selectedLevel,
+          'native_language': _selectedLanguage,
+          'learning_goals': [_selectedGoal],
+          'interests': _selectedInterests.take(3).toList(),
+        });
+        await ApiService.generateLearningPlan();
+        if (mounted) context.go('/loading');
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not start your learning plan: $error'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _submitting = false);
+      }
     }
   }
 
@@ -245,12 +260,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           onToggle: (v) => setState(() {
             if (_selectedInterests.contains(v)) {
               _selectedInterests.remove(v);
-            } else {
+            } else if (_selectedInterests.length < 3) {
               _selectedInterests.add(v);
             }
           }),
           onAdd: (v) {
-            if (v.isNotEmpty && !_allInterests.contains(v)) {
+            if (v.isNotEmpty &&
+                _selectedInterests.length < 3 &&
+                !_allInterests.contains(v)) {
               setState(() {
                 _allInterests.add(v);
                 _selectedInterests.add(v);

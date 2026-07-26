@@ -1,8 +1,10 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/data/phoneme_progress_store.dart';
+import '../../core/data/practice_word_store.dart';
+import 'pronunciation_screen.dart';
 
 // ─────────────────────────── Colors ───────────────────────────
 const _background = Color(0xFF090E1A);
@@ -15,159 +17,15 @@ const _error = Color(0xFFEF4444);
 const _textPrimary = Color(0xFFF1F5FF);
 const _textSecondary = Color(0xFF8896B0);
 
-// ─────────────────────────── Mock Data ────────────────────────
+// ─────────────────────────── Data ─────────────────────────────
 
-class _WordEntry {
-  final String word;
-  final String ipa;
-  final int score;
-  final String source;
-  final String? info;
-
-  _WordEntry({
-    required this.word,
-    required this.ipa,
-    required this.score,
-    required this.source,
-    this.info,
-  });
-
-  _WordEntry copyWith({int? score}) => _WordEntry(
-        word: word,
-        ipa: ipa,
-        score: score ?? this.score,
-        source: source,
-        info: info,
-      );
-}
-
-final _initialWords = [
-  _WordEntry(
-      word: 'thoroughly',
-      ipa: '/ˈθɜːrəli/',
-      score: 42,
-      source: 'Airport roleplay'),
-  _WordEntry(
-      word: 'comfortable',
-      ipa: '/ˈkʌmftəbəl/',
-      score: 58,
-      source: 'Hotel check-in roleplay'),
-  _WordEntry(
-      word: 'enthusiasm',
-      ipa: '/ɪnˈθjuːziæzəm/',
-      score: 35,
-      source: 'Job interview roleplay'),
-  _WordEntry(
-      word: 'particularly',
-      ipa: '/pəˈtɪkjələrli/',
-      score: 61,
-      source: 'Coffee shop roleplay'),
-  _WordEntry(
-      word: 'literature',
-      ipa: '/ˈlɪtrətʃər/',
-      score: 48,
-      source: 'Own practice'),
-];
-
-class _PhonemeEntry {
-  final String symbol;
-  final int score;
-  const _PhonemeEntry(this.symbol, this.score);
-}
-
-const _vowels = [
-  _PhonemeEntry('iː', 88),
-  _PhonemeEntry('ɪ', 72),
-  _PhonemeEntry('e', 65),
-  _PhonemeEntry('æ', 44),
-  _PhonemeEntry('ɑː', 78),
-  _PhonemeEntry('ɒ', 55),
-  _PhonemeEntry('ɔː', 82),
-  _PhonemeEntry('ʊ', 68),
-  _PhonemeEntry('uː', 90),
-  _PhonemeEntry('ʌ', 50),
-  _PhonemeEntry('ɜː', 38),
-  _PhonemeEntry('ə', 71),
-  _PhonemeEntry('eɪ', 85),
-  _PhonemeEntry('aɪ', 76),
-  _PhonemeEntry('ɔɪ', 62),
-  _PhonemeEntry('aʊ', 58),
-  _PhonemeEntry('əʊ', 74),
-  _PhonemeEntry('ɪə', 45),
-  _PhonemeEntry('eə', 41),
-  _PhonemeEntry('ʊə', 39),
-];
-
-const _consonants = [
-  _PhonemeEntry('p', 92),
-  _PhonemeEntry('b', 88),
-  _PhonemeEntry('t', 85),
-  _PhonemeEntry('d', 80),
-  _PhonemeEntry('k', 87),
-  _PhonemeEntry('g', 75),
-  _PhonemeEntry('f', 83),
-  _PhonemeEntry('v', 70),
-  _PhonemeEntry('θ', 28),
-  _PhonemeEntry('ð', 32),
-  _PhonemeEntry('s', 86),
-  _PhonemeEntry('z', 72),
-  _PhonemeEntry('ʃ', 65),
-  _PhonemeEntry('ʒ', 48),
-  _PhonemeEntry('h', 91),
-  _PhonemeEntry('tʃ', 77),
-  _PhonemeEntry('dʒ', 68),
-  _PhonemeEntry('m', 94),
-  _PhonemeEntry('n', 90),
-  _PhonemeEntry('ŋ', 60),
-  _PhonemeEntry('l', 82),
-  _PhonemeEntry('r', 55),
-  _PhonemeEntry('j', 88),
-  _PhonemeEntry('w', 89),
-];
+enum _WordFilter { all, needsChecking, roleplay, addedByMe }
 
 // ──────────────────── Score Color Helper ──────────────────────
 Color _scoreColor(int score) {
   if (score < 50) return _error;
   if (score <= 80) return _warning;
   return _success;
-}
-
-// ──────────────────── Arc Painter ─────────────────────────────
-class _ArcPainter extends CustomPainter {
-  final double progress; // 0.0 – 1.0
-  final Color arcColor;
-
-  _ArcPainter({required this.progress, required this.arcColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final radius = (size.width / 2) - 8;
-    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: radius);
-
-    // Track
-    final trackPaint = Paint()
-      ..color = const Color(0xFF1E2D45)
-      ..strokeWidth = 10
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi, false, trackPaint);
-
-    // Arc
-    final arcPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [_primary, _accent],
-      ).createShader(rect)
-      ..strokeWidth = 10
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(
-        rect, -math.pi / 2, 2 * math.pi * progress, false, arcPaint);
-  }
-
-  @override
-  bool shouldRepaint(_ArcPainter old) => old.progress != progress;
 }
 
 // ──────────────────── Main Widget ─────────────────────────────
@@ -178,58 +36,87 @@ class PracticeTab extends StatefulWidget {
   State<PracticeTab> createState() => _PracticeTabState();
 }
 
-class _PracticeTabState extends State<PracticeTab>
-    with TickerProviderStateMixin {
+class _PracticeTabState extends State<PracticeTab> {
   int _selectedSegment = 0;
-  final List<_WordEntry> _words = List.from(_initialWords);
+  _WordFilter _wordFilter = _WordFilter.all;
+  final PracticeWordStore _wordStore = PracticeWordStore.instance;
+  final PhonemeProgressStore _phonemeStore = PhonemeProgressStore.instance;
   final TextEditingController _addWordCtrl = TextEditingController();
-  late AnimationController _arcController;
-  late Animation<double> _arcAnimation;
-
-  // Overall average score for phoneme map
-  int get _overallScore {
-    final all = [..._vowels, ..._consonants];
-    return all.fold(0, (sum, p) => sum + p.score) ~/ all.length;
-  }
 
   @override
   void initState() {
     super.initState();
-    _arcController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-    _arcAnimation = CurvedAnimation(
-      parent: _arcController,
-      curve: Curves.easeOutCubic,
-    );
-    _arcController.forward();
+    _wordStore.addListener(_onWordsChanged);
+    _phonemeStore.addListener(_onWordsChanged);
+    _wordStore.load();
+    _phonemeStore.load();
   }
 
   @override
   void dispose() {
-    _arcController.dispose();
+    _wordStore.removeListener(_onWordsChanged);
+    _phonemeStore.removeListener(_onWordsChanged);
     _addWordCtrl.dispose();
     super.dispose();
   }
 
-  void _removeWord(int index) {
-    setState(() => _words.removeAt(index));
+  void _onWordsChanged() {
+    if (mounted) setState(() {});
   }
 
-  void _addWord() {
+  List<PracticeWord> get _visibleWords {
+    return _wordStore.words
+        .where((word) {
+          return switch (_wordFilter) {
+            _WordFilter.all => true,
+            _WordFilter.needsChecking => !word.addedManually && word.score < 80,
+            _WordFilter.roleplay => !word.addedManually,
+            _WordFilter.addedByMe => word.addedManually,
+          };
+        })
+        .toList(growable: false);
+  }
+
+  Future<void> _addWord() async {
     final text = _addWordCtrl.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _words.add(_WordEntry(
-        word: text,
-        ipa: '/${text.toLowerCase()}/',
-        score: 0,
-        source: 'Custom',
-        info: 'Added by you. Practice pronunciation to score.',
-      ));
-      _addWordCtrl.clear();
-    });
+    await _wordStore.addManualWord(text);
+    _addWordCtrl.clear();
+  }
+
+  void _practiceWord(PracticeWord word) {
+    context.push(
+      '/pronunciation',
+      extra: PronunciationLaunchArgs(
+        target: word.word,
+        onPassed: () => _wordStore.removeWord(word),
+      ),
+    );
+  }
+
+  Future<void> _deleteWord(PracticeWord word) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete practice word?'),
+        content: Text(
+          'Remove “${word.word}” from your list? You can add it again later.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: _error),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _wordStore.removeWord(word);
   }
 
   @override
@@ -239,28 +126,29 @@ class _PracticeTabState extends State<PracticeTab>
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
-            _buildFeatureCards(),
             _buildSegmentedControl(),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: child,
-                ),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
                 child: _selectedSegment == 0
                     ? _WordPracticeSection(
                         key: const ValueKey('word'),
-                        words: _words,
-                        onRemove: _removeWord,
+                        words: _visibleWords,
+                        filter: _wordFilter,
+                        onFilterChanged: (filter) =>
+                            setState(() => _wordFilter = filter),
+                        onPractice: _practiceWord,
+                        onDelete: _deleteWord,
                         addWordCtrl: _addWordCtrl,
                         onAdd: _addWord,
                       )
                     : _PhonemeMapSection(
                         key: const ValueKey('phoneme'),
-                        overallScore: _overallScore,
-                        arcAnimation: _arcAnimation,
+                        entries: _phonemeStore.entries,
+                        observationCount: _phonemeStore.observationCount,
+                        onStartPractice: () => context.push('/pronunciation'),
                       ),
               ),
             ),
@@ -270,138 +158,9 @@ class _PracticeTabState extends State<PracticeTab>
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        children: [
-          Text(
-            'Practice',
-            style: GoogleFonts.outfit(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: _textPrimary,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.tune_rounded, color: _textSecondary, size: 20),
-          ),
-        ],
-      ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.2, end: 0),
-    );
-  }
-
-  Widget _buildFeatureCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => context.push('/grammar-check'),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_primary.withOpacity(0.15), _accent.withOpacity(0.08)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _primary.withOpacity(0.25), width: 1),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_primary, _accent]),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.spellcheck_rounded, color: Colors.white, size: 18),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Grammar\nCheck',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _textPrimary,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'AI-powered corrections',
-                      style: GoogleFonts.inter(fontSize: 11, color: _textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 50.ms).slideX(begin: -0.1, end: 0),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => context.push('/plp/lessons'),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_accent.withOpacity(0.15), _primary.withOpacity(0.08)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _accent.withOpacity(0.25), width: 1),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_accent, _primary]),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'AI\nLessons',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _textPrimary,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'PLP structured learning',
-                      style: GoogleFonts.inter(fontSize: 11, color: _textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideX(begin: 0.1, end: 0),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSegmentedControl() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Container(
         height: 48,
         padding: const EdgeInsets.all(4),
@@ -412,7 +171,11 @@ class _PracticeTabState extends State<PracticeTab>
         ),
         child: Row(
           children: [
-            _buildSegmentPill(0, 'Word Practice', Icons.record_voice_over_rounded),
+            _buildSegmentPill(
+              0,
+              'Word Practice',
+              Icons.record_voice_over_rounded,
+            ),
             _buildSegmentPill(1, 'Phoneme Map', Icons.grid_view_rounded),
           ],
         ),
@@ -426,10 +189,6 @@ class _PracticeTabState extends State<PracticeTab>
       child: GestureDetector(
         onTap: () {
           setState(() => _selectedSegment = index);
-          if (index == 1) {
-            _arcController.reset();
-            _arcController.forward();
-          }
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
@@ -449,22 +208,24 @@ class _PracticeTabState extends State<PracticeTab>
                       color: _primary.withAlpha(80),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
-                    )
+                    ),
                   ]
                 : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16,
-                  color: isSelected ? Colors.white : _textSecondary),
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.white : _textSecondary,
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: GoogleFonts.outfit(
                   fontSize: 13,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   color: isSelected ? Colors.white : _textSecondary,
                 ),
               ),
@@ -478,15 +239,21 @@ class _PracticeTabState extends State<PracticeTab>
 
 // ─────────────── Word Practice Section ────────────────────────
 class _WordPracticeSection extends StatelessWidget {
-  final List<_WordEntry> words;
-  final void Function(int) onRemove;
+  final List<PracticeWord> words;
+  final _WordFilter filter;
+  final ValueChanged<_WordFilter> onFilterChanged;
+  final ValueChanged<PracticeWord> onPractice;
+  final ValueChanged<PracticeWord> onDelete;
   final TextEditingController addWordCtrl;
   final VoidCallback onAdd;
 
   const _WordPracticeSection({
     super.key,
     required this.words,
-    required this.onRemove,
+    required this.filter,
+    required this.onFilterChanged,
+    required this.onPractice,
+    required this.onDelete,
     required this.addWordCtrl,
     required this.onAdd,
   });
@@ -496,99 +263,152 @@ class _WordPracticeSection extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
-        _SectionHeader(
-          label: 'Words to Practice',
-          count: words.length,
-        ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, end: 0),
-        const SizedBox(height: 12),
-        ...List.generate(words.length, (i) {
-          return _WordCard(
-            entry: words[i],
-            onPractice: () {},
-            onMarkCorrect: () => onRemove(i),
-          )
-              .animate(delay: Duration(milliseconds: 60 * i))
-              .fadeIn(duration: 350.ms)
-              .slideY(begin: 0.15, end: 0);
-        }),
+        _WordFilters(
+          selected: filter,
+          onSelected: onFilterChanged,
+        ).animate().fadeIn(duration: 300.ms),
+        const SizedBox(height: 14),
+        if (words.isEmpty)
+          _EmptyWordQueue(filter: filter)
+        else
+          ...List.generate(words.length, (i) {
+            return _WordCard(
+                  entry: words[i],
+                  onPractice: () => onPractice(words[i]),
+                  onDelete: () => onDelete(words[i]),
+                )
+                .animate(delay: Duration(milliseconds: 60 * i))
+                .fadeIn(duration: 350.ms)
+                .slideY(begin: 0.15, end: 0);
+          }),
         const SizedBox(height: 20),
-        _AddWordSection(ctrl: addWordCtrl, onAdd: onAdd)
-            .animate(delay: 300.ms)
-            .fadeIn(duration: 400.ms),
+        _AddWordSection(
+          ctrl: addWordCtrl,
+          onAdd: onAdd,
+        ).animate(delay: 300.ms).fadeIn(duration: 400.ms),
       ],
     );
   }
 }
 
-// ─────────────── Section Header ───────────────────────────────
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  final int count;
+class _WordFilters extends StatelessWidget {
+  final _WordFilter selected;
+  final ValueChanged<_WordFilter> onSelected;
 
-  const _SectionHeader({required this.label, required this.count});
+  const _WordFilters({required this.selected, required this.onSelected});
+
+  static const _labels = {
+    _WordFilter.all: 'All',
+    _WordFilter.needsChecking: 'Needs checking',
+    _WordFilter.roleplay: 'Roleplay',
+    _WordFilter.addedByMe: 'Added by me',
+  };
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: _textPrimary,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _WordFilter.values
+            .map((filter) {
+              final active = filter == selected;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  selected: active,
+                  showCheckmark: false,
+                  label: Text(_labels[filter]!),
+                  onSelected: (_) => onSelected(filter),
+                  selectedColor: _primary.withValues(alpha: 0.2),
+                  backgroundColor: const Color(0xFF111827),
+                  side: BorderSide(
+                    color: active ? _primary : const Color(0xFF2A3E5A),
+                  ),
+                  labelStyle: GoogleFonts.outfit(
+                    color: active ? _textPrimary : _textSecondary,
+                    fontSize: 12,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+}
+
+class _EmptyWordQueue extends StatelessWidget {
+  final _WordFilter filter;
+
+  const _EmptyWordQueue({required this.filter});
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = filter != _WordFilter.all;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2D45)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            filtered ? Icons.filter_alt_off_rounded : Icons.task_alt_rounded,
+            color: _textSecondary,
+            size: 28,
           ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [_primary, _accent],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            '$count',
+          const SizedBox(height: 10),
+          Text(
+            filtered ? 'No words match this filter' : 'Your queue is clear',
+            textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: _textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 5),
+          Text(
+            filtered
+                ? 'Choose another filter to see the rest of your words.'
+                : 'Words the roleplay recognizer was unsure about will appear here for verification.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              color: _textSecondary,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 // ─────────────── Word Card ────────────────────────────────────
 class _WordCard extends StatelessWidget {
-  final _WordEntry entry;
+  final PracticeWord entry;
   final VoidCallback onPractice;
-  final VoidCallback onMarkCorrect;
+  final VoidCallback onDelete;
 
   const _WordCard({
     required this.entry,
     required this.onPractice,
-    required this.onMarkCorrect,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = _scoreColor(entry.score);
+    final borderColor = entry.addedManually ? _primary : _warning;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: _surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border(
-          left: BorderSide(color: borderColor, width: 3),
-        ),
+        border: Border(left: BorderSide(color: borderColor, width: 3)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(50),
@@ -625,10 +445,10 @@ class _WordCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (entry.info != null) ...[
+                  if (entry.addedManually) ...[
                     const SizedBox(height: 3),
                     Text(
-                      entry.info!,
+                      'Added by you',
                       style: GoogleFonts.outfit(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -640,12 +460,18 @@ class _WordCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      _ScorePill(score: entry.score),
+                      _ScorePill(
+                        score: entry.score,
+                        unscored: entry.addedManually,
+                        recognitionCheck: !entry.addedManually,
+                      ),
                       const SizedBox(width: 10),
                       if (entry.source.isNotEmpty)
                         Expanded(
                           child: Text(
-                            entry.source,
+                            entry.occurrences > 1
+                                ? '${entry.source} · seen ${entry.occurrences}×'
+                                : entry.source,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.outfit(
                               fontSize: 11,
@@ -662,6 +488,7 @@ class _WordCard extends StatelessWidget {
             Column(
               children: [
                 _ActionBtn(
+                  key: ValueKey('practice-${entry.word}'),
                   icon: Icons.mic_rounded,
                   color: _primary,
                   onTap: onPractice,
@@ -669,10 +496,11 @@ class _WordCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 _ActionBtn(
-                  icon: Icons.check_circle_outline_rounded,
-                  color: _success,
-                  onTap: onMarkCorrect,
-                  tooltip: 'Mark as correct',
+                  key: ValueKey('delete-${entry.word}'),
+                  icon: Icons.delete_outline_rounded,
+                  color: _error,
+                  onTap: onDelete,
+                  tooltip: 'Delete word',
                 ),
               ],
             ),
@@ -686,11 +514,18 @@ class _WordCard extends StatelessWidget {
 // ─────────────── Score Pill ───────────────────────────────────
 class _ScorePill extends StatelessWidget {
   final int score;
-  const _ScorePill({required this.score});
+  final bool unscored;
+  final bool recognitionCheck;
+
+  const _ScorePill({
+    required this.score,
+    this.unscored = false,
+    this.recognitionCheck = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = _scoreColor(score);
+    final color = unscored ? _primary : _scoreColor(score);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
@@ -699,7 +534,11 @@ class _ScorePill extends StatelessWidget {
         border: Border.all(color: color.withAlpha(100), width: 1),
       ),
       child: Text(
-        '$score%',
+        unscored
+            ? 'New'
+            : recognitionCheck
+            ? 'Check · $score%'
+            : '$score%',
         style: GoogleFonts.outfit(
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -718,6 +557,7 @@ class _ActionBtn extends StatelessWidget {
   final String tooltip;
 
   const _ActionBtn({
+    super.key,
     required this.icon,
     required this.color,
     required this.onTap,
@@ -772,10 +612,7 @@ class _AddWordSection extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: ctrl,
-                style: GoogleFonts.outfit(
-                  color: _textPrimary,
-                  fontSize: 15,
-                ),
+                style: GoogleFonts.outfit(color: _textPrimary, fontSize: 15),
                 decoration: InputDecoration(
                   hintText: 'e.g. pronunciation',
                   hintStyle: GoogleFonts.outfit(
@@ -785,7 +622,9 @@ class _AddWordSection extends StatelessWidget {
                   filled: true,
                   fillColor: _surfaceCard,
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -793,12 +632,13 @@ class _AddWordSection extends StatelessWidget {
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                        color: Color(0xFF2A3E5A), width: 1),
+                      color: Color(0xFF2A3E5A),
+                      width: 1,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: _primary, width: 1.5),
+                    borderSide: const BorderSide(color: _primary, width: 1.5),
                   ),
                 ),
                 onSubmitted: (_) => onAdd(),
@@ -822,11 +662,14 @@ class _AddWordSection extends StatelessWidget {
                       color: _primary.withAlpha(80),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
-                    )
+                    ),
                   ],
                 ),
-                child: const Icon(Icons.add_rounded,
-                    color: Colors.white, size: 24),
+                child: const Icon(
+                  Icons.add_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ),
           ],
@@ -838,134 +681,94 @@ class _AddWordSection extends StatelessWidget {
 
 // ─────────────── Phoneme Map Section ──────────────────────────
 class _PhonemeMapSection extends StatelessWidget {
-  final int overallScore;
-  final Animation<double> arcAnimation;
+  final List<PhonemeProgress> entries;
+  final int observationCount;
+  final VoidCallback onStartPractice;
 
   const _PhonemeMapSection({
     super.key,
-    required this.overallScore,
-    required this.arcAnimation,
+    required this.entries,
+    required this.observationCount,
+    required this.onStartPractice,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _surfaceCard,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _primary.withValues(alpha: 0.22)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: _primary.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.graphic_eq_rounded,
+                    color: _primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No measured phonemes yet',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                    color: _textPrimary,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Complete a scripted pronunciation recording to start your '
+                  'map. Only phones with acoustic evidence receive a score.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                    color: _textSecondary,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: onStartPractice,
+                  icon: const Icon(Icons.record_voice_over_rounded),
+                  label: const Text('Start pronunciation practice'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       children: [
-        _OverallScoreArc(
-          score: overallScore,
-          animation: arcAnimation,
-        ).animate().fadeIn(duration: 500.ms).scale(
-              begin: const Offset(0.85, 0.85),
-              end: const Offset(1, 1),
-              duration: 500.ms,
-              curve: Curves.easeOutBack,
-            ),
+        _LegendRow().animate().fadeIn(duration: 400.ms),
+        const SizedBox(height: 12),
+        Text(
+          '$observationCount acoustically scored phone '
+          '${observationCount == 1 ? 'observation' : 'observations'}',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(fontSize: 12, color: _textSecondary),
+        ),
         const SizedBox(height: 24),
-        _LegendRow()
-            .animate(delay: 200.ms)
-            .fadeIn(duration: 400.ms),
-        const SizedBox(height: 24),
-        _PhonemeGroupSection(
-          title: 'Vowels',
-          phonemes: _vowels,
-        )
-            .animate(delay: 300.ms)
-            .fadeIn(duration: 400.ms)
-            .slideY(begin: 0.1, end: 0),
-        const SizedBox(height: 20),
-        _PhonemeGroupSection(
-          title: 'Consonants',
-          phonemes: _consonants,
-        )
+        _PhonemeGroupSection(title: 'Measured phonemes', phonemes: entries)
             .animate(delay: 450.ms)
             .fadeIn(duration: 400.ms)
             .slideY(begin: 0.1, end: 0),
       ],
-    );
-  }
-}
-
-// ─────────────── Overall Score Arc ────────────────────────────
-class _OverallScoreArc extends StatelessWidget {
-  final int score;
-  final Animation<double> animation;
-
-  const _OverallScoreArc({required this.score, required this.animation});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _surfaceCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF2A3E5A), width: 1),
-      ),
-      child: Column(
-        children: [
-          Text(
-            'Your Pronunciation Profile',
-            style: GoogleFonts.outfit(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: _textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Based on all your recent sessions',
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: _textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
-          AnimatedBuilder(
-            animation: animation,
-            builder: (context, _) {
-              final progress = animation.value * (score / 100.0);
-              return SizedBox(
-                width: 140,
-                height: 140,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CustomPaint(
-                      size: const Size(140, 140),
-                      painter: _ArcPainter(
-                          progress: progress,
-                          arcColor: _scoreColor(score)),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$score%',
-                          style: GoogleFonts.outfit(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w800,
-                            color: _textPrimary,
-                            height: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Overall',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            color: _textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1016,10 +819,9 @@ class _LegendDot extends StatelessWidget {
 // ─────────────── Phoneme Group ────────────────────────────────
 class _PhonemeGroupSection extends StatelessWidget {
   final String title;
-  final List<_PhonemeEntry> phonemes;
+  final List<PhonemeProgress> phonemes;
 
-  const _PhonemeGroupSection(
-      {required this.title, required this.phonemes});
+  const _PhonemeGroupSection({required this.title, required this.phonemes});
 
   @override
   Widget build(BuildContext context) {
@@ -1052,10 +854,7 @@ class _PhonemeGroupSection extends StatelessWidget {
             const Spacer(),
             Text(
               '${phonemes.length} phonemes',
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                color: _textSecondary,
-              ),
+              style: GoogleFonts.outfit(fontSize: 12, color: _textSecondary),
             ),
           ],
         ),
@@ -1063,9 +862,7 @@ class _PhonemeGroupSection extends StatelessWidget {
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: phonemes
-              .map((p) => _PhonemeCell(entry: p))
-              .toList(),
+          children: phonemes.map((p) => _PhonemeCell(entry: p)).toList(),
         ),
       ],
     );
@@ -1074,7 +871,7 @@ class _PhonemeGroupSection extends StatelessWidget {
 
 // ─────────────── Phoneme Cell ─────────────────────────────────
 class _PhonemeCell extends StatefulWidget {
-  final _PhonemeEntry entry;
+  final PhonemeProgress entry;
   const _PhonemeCell({required this.entry});
 
   @override
@@ -1130,9 +927,11 @@ class _PhonemeCellState extends State<_PhonemeCell> {
               ),
             ),
             Text(
-              '${widget.entry.score}%',
+              widget.entry.observations == 1
+                  ? '${widget.entry.score}%'
+                  : '${widget.entry.score}% · ${widget.entry.observations}',
               style: const TextStyle(
-                fontSize: 9,
+                fontSize: 8,
                 fontWeight: FontWeight.w500,
                 color: Colors.white70,
                 height: 1.2,

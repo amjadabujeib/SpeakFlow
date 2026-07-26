@@ -1,20 +1,23 @@
 // lib/shared/widgets/dictionary_popup.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/data/mock_data.dart';
 import '../../core/services/api_service.dart';
+
+typedef DictionaryLookup = Future<Map<String, dynamic>> Function(String word);
 
 class DictionaryPopup extends StatelessWidget {
   final String word;
   final Offset tapPosition;
+  final DictionaryLookup lookup;
 
-  const DictionaryPopup({
+  DictionaryPopup({
     super.key,
     required this.word,
     required this.tapPosition,
-  });
+    DictionaryLookup? lookup,
+  }) : lookup = lookup ?? ApiService.lookupWord;
 
   static void show(BuildContext context, String word, Offset globalPosition) {
     showDialog(
@@ -46,7 +49,7 @@ class DictionaryPopup extends StatelessWidget {
             Positioned(
               left: left,
               top: top,
-              child: _LivePopupCard(word: word),
+              child: _LivePopupCard(word: word, lookup: lookup),
             ),
           ],
         ),
@@ -55,10 +58,12 @@ class DictionaryPopup extends StatelessWidget {
   }
 }
 
-/// Fetches real dictionary data from the backend, falls back to mock data
+/// Fetches dictionary data for exactly the selected word.
 class _LivePopupCard extends StatefulWidget {
   final String word;
-  const _LivePopupCard({required this.word});
+  final DictionaryLookup lookup;
+
+  const _LivePopupCard({required this.word, required this.lookup});
 
   @override
   State<_LivePopupCard> createState() => _LivePopupCardState();
@@ -67,6 +72,7 @@ class _LivePopupCard extends StatefulWidget {
 class _LivePopupCardState extends State<_LivePopupCard> {
   Map<String, dynamic>? _data;
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -75,15 +81,16 @@ class _LivePopupCardState extends State<_LivePopupCard> {
   }
 
   Future<void> _fetchDefinition() async {
-    final result = await ApiService.lookupWord(widget.word);
+    final result = await widget.lookup(widget.word);
     if (!mounted) return;
     setState(() {
       _isLoading = false;
       if (result.containsKey('error')) {
-        // Fall back to mock data
-        _data = MockData.dictionaryEntry;
+        _data = {'word': widget.word};
+        _error = result['error']?.toString() ?? 'Lookup failed.';
       } else {
-        _data = result;
+        _data = {...result, 'word': widget.word};
+        _error = null;
       }
     });
   }
@@ -91,45 +98,45 @@ class _LivePopupCardState extends State<_LivePopupCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 300,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 0),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Top gradient bar
-            Container(
-              height: 3,
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
+          width: 300,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderLight),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
               ),
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 0),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top gradient bar
+                Container(
+                  height: 3,
+                  decoration: const BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                  ),
+                ),
+                if (_isLoading) _buildLoadingState() else _buildContent(),
+              ],
             ),
-            if (_isLoading)
-              _buildLoadingState()
-            else
-              _buildContent(),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(duration: 250.ms).scale(
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 250.ms)
+        .scale(
           begin: const Offset(0.92, 0.92),
           end: const Offset(1, 1),
           duration: 250.ms,
@@ -172,12 +179,21 @@ class _LivePopupCardState extends State<_LivePopupCard> {
   }
 
   Widget _buildContent() {
-    final data = _data ?? MockData.dictionaryEntry;
+    final data = _data ?? {'word': widget.word};
     final ipa = data['phonetic']?.toString() ?? data['ipa']?.toString() ?? '';
-    final partOfSpeech = data['part_of_speech']?.toString() ?? data['partOfSpeech']?.toString() ?? '';
-    final translation = data['arabic_translation']?.toString() ?? data['translation']?.toString() ?? '';
+    final partOfSpeech =
+        data['part_of_speech']?.toString() ??
+        data['partOfSpeech']?.toString() ??
+        '';
+    final translation =
+        data['arabic_translation']?.toString() ??
+        data['translation']?.toString() ??
+        '';
     final definition = data['definition']?.toString() ?? '';
-    final example = data['example_sentence']?.toString() ?? data['example']?.toString() ?? '';
+    final example =
+        data['example_sentence']?.toString() ??
+        data['example']?.toString() ??
+        '';
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -206,12 +222,62 @@ class _LivePopupCardState extends State<_LivePopupCard> {
                     gradient: AppColors.primaryGradient,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.volume_up_rounded,
-                      color: Colors.white, size: 16),
+                  child: const Icon(
+                    Icons.volume_up_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 ),
               ),
             ],
           ),
+          if (_error case final error?) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Could not look up “${widget.word}”.',
+                    style: GoogleFonts.inter(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    error,
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _error = null;
+                      });
+                      _fetchDefinition();
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 17),
+                    label: const Text('Try again'),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           // IPA + part of speech
           Row(
@@ -229,7 +295,10 @@ class _LivePopupCardState extends State<_LivePopupCard> {
                 const SizedBox(width: 8),
               if (partOfSpeech.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
@@ -255,12 +324,16 @@ class _LivePopupCardState extends State<_LivePopupCard> {
                 color: AppColors.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                    color: AppColors.accent.withValues(alpha: 0.2)),
+                  color: AppColors.accent.withValues(alpha: 0.2),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.translate_rounded,
-                      color: AppColors.accent, size: 14),
+                  const Icon(
+                    Icons.translate_rounded,
+                    color: AppColors.accent,
+                    size: 14,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -333,7 +406,11 @@ class _LivePopupCardState extends State<_LivePopupCard> {
 
 // Mixin to add long-press dictionary feature to any text
 mixin DictionaryMixin {
-  void showDictionaryForWord(BuildContext context, String word, Offset position) {
+  void showDictionaryForWord(
+    BuildContext context,
+    String word,
+    Offset position,
+  ) {
     DictionaryPopup.show(context, word, position);
   }
 }

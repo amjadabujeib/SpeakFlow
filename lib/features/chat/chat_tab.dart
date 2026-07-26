@@ -1,94 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
 
-// ─────────────────────────────────────────────
-// Data models
-// ─────────────────────────────────────────────
+import '../../core/services/api_service.dart';
+import 'roleplay_models.dart';
 
-class RoleplayItem {
-  final String id;
-  final String title;
-  final String desc;
-  int sessions;
-
-  RoleplayItem({
-    required this.id,
-    required this.title,
-    required this.desc,
-    required this.sessions,
-  });
-}
-
-class SectionItem {
-  final String id;
-  final String title;
-  final String icon;
-  final List<RoleplayItem> roleplays;
-
-  SectionItem({
-    required this.id,
-    required this.title,
-    required this.icon,
-    required this.roleplays,
-  });
-}
-
-// ─────────────────────────────────────────────
-// Mock data
-// ─────────────────────────────────────────────
-
-final List<SectionItem> _mockSections = [
-  SectionItem(
-    id: 's1',
-    title: 'Travel',
-    icon: '✈️',
-    roleplays: [
-      RoleplayItem(id: 'r1', title: 'Airport Check-in', desc: 'Check in for a flight', sessions: 3),
-      RoleplayItem(id: 'r2', title: 'Hotel Check-in', desc: 'Book a room', sessions: 1),
-      RoleplayItem(id: 'r3', title: 'Asking for Directions', desc: 'Navigate a city', sessions: 0),
-    ],
-  ),
-  SectionItem(
-    id: 's2',
-    title: 'Food & Dining',
-    icon: '🍽️',
-    roleplays: [
-      RoleplayItem(id: 'r4', title: 'Ordering at Restaurant', desc: 'Order food and handle bill', sessions: 2),
-      RoleplayItem(id: 'r5', title: 'Café Small Talk', desc: 'Casual conversation', sessions: 0),
-    ],
-  ),
-  SectionItem(
-    id: 's3',
-    title: 'Business',
-    icon: '💼',
-    roleplays: [
-      RoleplayItem(id: 'r6', title: 'Job Interview', desc: 'Practice interview questions', sessions: 4),
-      RoleplayItem(id: 'r7', title: 'Business Meeting', desc: 'Present ideas in meetings', sessions: 1),
-    ],
-  ),
-];
-
-// ─────────────────────────────────────────────
-// Colors
-// ─────────────────────────────────────────────
-
-const _background   = Color(0xFF090E1A);
-const _surface      = Color(0xFF111827);
-const _surfaceCard  = Color(0xFF1A2235);
-const _surfaceCard2 = Color(0xFF1E2D45);
-const _primary      = Color(0xFF4F7FFF);
-const _accent       = Color(0xFF8B5CF6);
-const _success      = Color(0xFF22C55E);
-const _warning      = Color(0xFFF59E0B);
-const _textPrimary  = Color(0xFFF1F5FF);
-const _textSecondary= Color(0xFF8896B0);
-const _border       = Color(0xFF1E2D45);
-
-// ─────────────────────────────────────────────
-// Chat Tab
-// ─────────────────────────────────────────────
+const _background = Color(0xFF090E1A);
+const _surface = Color(0xFF111827);
+const _card = Color(0xFF1A2235);
+const _cardInner = Color(0xFF1E2D45);
+const _primary = Color(0xFF4F7FFF);
+const _accent = Color(0xFF8B5CF6);
+const _warning = Color(0xFFF59E0B);
+const _text = Color(0xFFF1F5FF);
+const _muted = Color(0xFF8896B0);
+const _border = Color(0xFF263550);
 
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
@@ -98,316 +24,192 @@ class ChatTab extends StatefulWidget {
 }
 
 class _ChatTabState extends State<ChatTab> {
-  late List<SectionItem> _sections;
-  final Set<String> _expanded = {'s1'};
+  List<RoleplayScenario> _scenarios = const [];
+  List<Map<String, dynamic>> _history = const [];
+  final Set<String> _expanded = {'Travel'};
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _sections = List.from(_mockSections);
+    _load();
   }
 
-  // ── History bottom sheet ──────────────────
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final results = await Future.wait([
+        ApiService.getRoleplayScenarios(),
+        ApiService.getRoleplayHistory(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _scenarios = results[0]
+            .map(RoleplayScenario.fromJson)
+            .toList(growable: false);
+        _history = results[1];
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$error';
+        _loading = false;
+      });
+    }
+  }
 
-  void _openHistory() {
-    showModalBottomSheet(
+  Map<String, List<RoleplayScenario>> get _grouped {
+    final result = <String, List<RoleplayScenario>>{};
+    for (final scenario in _scenarios) {
+      result.putIfAbsent(scenario.category, () => []).add(scenario);
+    }
+    return result;
+  }
+
+  int _sessionCount(RoleplayScenario scenario) {
+    return _history.where((item) {
+      if (item['status'] != 'complete') return false;
+      final id = item['scenario_id']?.toString();
+      if (id != null && id.isNotEmpty) return id == scenario.id;
+      return item['scenario']?.toString().toLowerCase() ==
+          scenario.title.toLowerCase();
+    }).length;
+  }
+
+  Future<void> _showCreateScenario() async {
+    final scenario = await showDialog<RoleplayScenario>(
       context: context,
+      barrierDismissible: false,
+      builder: (_) => const _ScenarioBuilderDialog(),
+    );
+    if (!mounted || scenario == null) return;
+    setState(() {
+      _scenarios = [..._scenarios, scenario];
+      _expanded.add(scenario.category);
+    });
+  }
+
+  Future<void> _showHistory() async {
+    final selected = await showModalBottomSheet<RoleplayHistoryArgs>(
+      context: context,
+      isScrollControlled: true,
       backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      builder: (_) => _HistorySheet(),
-    );
-  }
-
-  // ── Add section dialog ────────────────────
-
-  void _showAddSectionDialog() {
-    final nameCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'New Section',
-          style: GoogleFonts.inter(color: _textPrimary, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _DialogTextField(controller: nameCtrl, hint: 'Section name (e.g. Shopping)'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: _textSecondary)),
-          ),
-          _GradientButton(
-            label: 'Create',
-            onTap: () {
-              final name = nameCtrl.text.trim();
-              if (name.isNotEmpty) {
-                setState(() {
-                  final id = 's${_sections.length + 1}';
-                  _sections.add(SectionItem(id: id, title: name, icon: '📌', roleplays: []));
-                  _expanded.add(id);
-                });
-              }
-              Navigator.pop(ctx);
-            },
-          ),
-        ],
+      builder: (_) => FractionallySizedBox(
+        heightFactor: .76,
+        child: _HistorySheet(history: _history),
       ),
     );
+    if (!mounted || selected == null) return;
+    await context.push('/chat/history', extra: selected);
   }
-
-  // ── Add roleplay dialog ───────────────────
-
-  void _showAddRoleplayDialog(SectionItem section) {
-    final nameCtrl   = TextEditingController();
-    final promptCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Add Roleplay to ${section.title}',
-          style: GoogleFonts.inter(color: _textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _DialogTextField(controller: nameCtrl, hint: 'Roleplay name'),
-            const SizedBox(height: 12),
-            _DialogTextField(controller: promptCtrl, hint: 'AI prompt / scenario description', maxLines: 3),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter(color: _textSecondary)),
-          ),
-          _GradientButton(
-            label: 'Add',
-            onTap: () {
-              final name   = nameCtrl.text.trim();
-              final prompt = promptCtrl.text.trim();
-              if (name.isNotEmpty) {
-                setState(() {
-                  section.roleplays.add(
-                    RoleplayItem(
-                      id: 'r_new_${DateTime.now().millisecondsSinceEpoch}',
-                      title: name,
-                      desc: prompt.isEmpty ? 'Custom roleplay' : prompt,
-                      sessions: 0,
-                    ),
-                  );
-                });
-              }
-              Navigator.pop(ctx);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                itemCount: _sections.length,
-                itemBuilder: (context, index) {
-                  return _SectionCard(
-                    section: _sections[index],
-                    isExpanded: _expanded.contains(_sections[index].id),
-                    onToggle: () => setState(() {
-                      if (_expanded.contains(_sections[index].id)) {
-                        _expanded.remove(_sections[index].id);
-                      } else {
-                        _expanded.add(_sections[index].id);
-                      }
-                    }),
-                    onAddRoleplay: () => _showAddRoleplayDialog(_sections[index]),
-                  ).animate().fadeIn(delay: Duration(milliseconds: index * 80)).slideY(begin: 0.06, end: 0);
-                },
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: _primary))
+            : _error != null
+            ? _ErrorState(message: _error!, onRetry: _load)
+            : RefreshIndicator(
+                color: _primary,
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 112),
+                  children: [
+                    _IntroCard(),
+                    const SizedBox(height: 16),
+                    for (final entry in _grouped.entries)
+                      _CategoryCard(
+                        title: entry.key,
+                        scenarios: entry.value,
+                        expanded: _expanded.contains(entry.key),
+                        sessionCount: _sessionCount,
+                        onToggle: () => setState(() {
+                          if (!_expanded.add(entry.key)) {
+                            _expanded.remove(entry.key);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
       ),
-      floatingActionButton: _buildFAB(),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
-      child: Row(
-        children: [
-          ShaderMask(
-            shaderCallback: (b) => const LinearGradient(
-              colors: [_primary, _accent],
-            ).createShader(b),
-            child: Text(
-              'Conversations',
-              style: GoogleFonts.inter(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
+      floatingActionButton: _loading || _error != null
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'roleplay-history',
+                  backgroundColor: _cardInner,
+                  onPressed: _showHistory,
+                  child: const Icon(Icons.history_rounded, color: _text),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton(
+                  heroTag: 'roleplay-create',
+                  onPressed: _showCreateScenario,
+                  backgroundColor: _primary,
+                  child: const Icon(Icons.add_rounded, color: Colors.white),
+                ),
+              ],
             ),
-          ),
-          const Spacer(),
-          _IconBtn(
-            icon: Icons.history_rounded,
-            onTap: _openHistory,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFAB() {
-    return GestureDetector(
-      onTap: _showAddSectionDialog,
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [_primary, _accent],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: _primary.withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
-      ),
     );
   }
 }
 
-// ─────────────────────────────────────────────
-// Section card
-// ─────────────────────────────────────────────
-
-class _SectionCard extends StatelessWidget {
-  final SectionItem section;
-  final bool isExpanded;
-  final VoidCallback onToggle;
-  final VoidCallback onAddRoleplay;
-
-  const _SectionCard({
-    required this.section,
-    required this.isExpanded,
-    required this.onToggle,
-    required this.onAddRoleplay,
-  });
-
+class _IntroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _surfaceCard,
+        gradient: LinearGradient(
+          colors: [
+            _primary.withValues(alpha: .18),
+            _accent.withValues(alpha: .13),
+          ],
+        ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _border, width: 1),
+        border: Border.all(color: _primary.withValues(alpha: .28)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          // Header row
-          InkWell(
-            onTap: onToggle,
-            borderRadius: isExpanded
-                ? const BorderRadius.vertical(top: Radius.circular(20))
-                : BorderRadius.circular(20),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Text(section.icon, style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      section.title,
-                      style: GoogleFonts.inter(
-                        color: _textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  // Add roleplay button
-                  GestureDetector(
-                    onTap: onAddRoleplay,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: _primary.withOpacity(0.6)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '+ Add Roleplay',
-                        style: GoogleFonts.inter(
-                          color: _primary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  AnimatedRotation(
-                    turns: isExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 250),
-                    child: const Icon(Icons.keyboard_arrow_down_rounded,
-                        color: _textSecondary, size: 22),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Expanded roleplays
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 280),
-            crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            firstChild: const SizedBox.shrink(),
-            secondChild: Column(
+          const Icon(Icons.forum_rounded, color: _primary, size: 28),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Divider(color: _border, height: 1),
-                const SizedBox(height: 8),
-                if (section.roleplays.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'No roleplays yet. Tap "+ Add Roleplay" to create one.',
-                      style: GoogleFonts.inter(color: _textSecondary, fontSize: 13),
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                else
-                  ...section.roleplays.map((r) => _RoleplayCard(roleplay: r)),
-                const SizedBox(height: 8),
+                Text(
+                  'Practice a real conversation',
+                  style: GoogleFonts.inter(
+                    color: _text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose a situation, complete its goals, and get feedback based on what you actually said.',
+                  style: GoogleFonts.inter(
+                    color: _muted,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
               ],
             ),
           ),
@@ -417,281 +219,956 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-// Roleplay card
-// ─────────────────────────────────────────────
+class _CategoryCard extends StatelessWidget {
+  final String title;
+  final List<RoleplayScenario> scenarios;
+  final bool expanded;
+  final int Function(RoleplayScenario) sessionCount;
+  final VoidCallback onToggle;
 
-class _RoleplayCard extends StatelessWidget {
-  final RoleplayItem roleplay;
-  const _RoleplayCard({required this.roleplay});
-
-  Color get _borderColor {
-    final colors = [_primary, _accent, _success, _warning];
-    final idx = roleplay.id.hashCode.abs() % colors.length;
-    return colors[idx];
-  }
+  const _CategoryCard({
+    required this.title,
+    required this.scenarios,
+    required this.expanded,
+    required this.sessionCount,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: _surfaceCard2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border(left: BorderSide(color: _borderColor, width: 3)),
+        color: _card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+              child: Row(
                 children: [
                   Text(
-                    roleplay.title,
-                    style: GoogleFonts.inter(
-                      color: _textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                    scenarios.first.icon,
+                    style: const TextStyle(fontSize: 21),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    roleplay.desc,
-                    style: GoogleFonts.inter(color: _textSecondary, fontSize: 12),
-                  ),
-                  const SizedBox(height: 7),
-                  // Session count badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: Text(
-                      roleplay.sessions == 0
-                          ? 'No sessions yet'
-                          : '${roleplay.sessions} session${roleplay.sessions == 1 ? '' : 's'}',
+                      title,
                       style: GoogleFonts.inter(
-                        color: _primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        color: _text,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            // Start button
-            GestureDetector(
-              onTap: () => context.push('/chat/roleplay', extra: roleplay.title),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_primary, _accent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  Text(
+                    '${scenarios.length}',
+                    style: GoogleFonts.inter(color: _muted, fontSize: 12),
                   ),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _primary.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  'Start',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// History bottom sheet
-// ─────────────────────────────────────────────
-
-class _HistorySheet extends StatelessWidget {
-  final List<Map<String, String>> _history = const [
-    {'title': 'Airport Check-in', 'date': 'Jun 24, 2026', 'score': '82'},
-    {'title': 'Job Interview', 'date': 'Jun 22, 2026', 'score': '76'},
-    {'title': 'Ordering at Restaurant', 'date': 'Jun 20, 2026', 'score': '91'},
-    {'title': 'Hotel Check-in', 'date': 'Jun 18, 2026', 'score': '68'},
-    {'title': 'Business Meeting', 'date': 'Jun 15, 2026', 'score': '85'},
-  ];
-
-  const _HistorySheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: _border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              const Icon(Icons.history_rounded, color: _primary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Session History',
-                style: GoogleFonts.inter(
-                  color: _textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ..._history.asMap().entries.map((e) {
-            final item  = e.value;
-            final score = int.parse(item['score']!);
-            final color = score >= 80 ? _success : score >= 60 ? _warning : const Color(0xFFEF4444);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _surfaceCard,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item['title']!, style: GoogleFonts.inter(color: _textPrimary, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 3),
-                        Text(item['date']!, style: GoogleFonts.inter(color: _textSecondary, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${item['score']}%',
-                      style: GoogleFonts.inter(color: color, fontWeight: FontWeight.w700, fontSize: 13),
+                  const SizedBox(width: 6),
+                  AnimatedRotation(
+                    turns: expanded ? .5 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: _muted,
                     ),
                   ),
                 ],
               ),
-            ).animate().fadeIn(delay: Duration(milliseconds: e.key * 60)).slideY(begin: 0.05, end: 0);
-          }),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity),
+            secondChild: Column(
+              children: [
+                const Divider(height: 1, color: _border),
+                const SizedBox(height: 7),
+                for (final scenario in scenarios)
+                  _ScenarioCard(
+                    scenario: scenario,
+                    sessions: sessionCount(scenario),
+                  ),
+                const SizedBox(height: 7),
+              ],
+            ),
+            crossFadeState: expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 220),
+          ),
         ],
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────
-// Shared small widgets
-// ─────────────────────────────────────────────
+class _ScenarioCard extends StatelessWidget {
+  final RoleplayScenario scenario;
+  final int sessions;
 
-class _IconBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _IconBtn({required this.icon, required this.onTap});
+  const _ScenarioCard({required this.scenario, required this.sessions});
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      style: IconButton.styleFrom(
-        backgroundColor: _surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardInner,
+        borderRadius: BorderRadius.circular(15),
       ),
-      icon: Icon(icon, color: _textPrimary, size: 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  scenario.title,
+                  style: GoogleFonts.inter(
+                    color: _text,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  scenario.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: _muted,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  sessions == 0
+                      ? scenario.designedCefrLevel == null
+                            ? '${scenario.objectives.length} conversation goals'
+                            : '${scenario.designedCefrLevel} design · ${scenario.objectives.length} goals'
+                      : '$sessions previous session${sessions == 1 ? '' : 's'}',
+                  style: GoogleFonts.inter(
+                    color: _primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton.filled(
+            tooltip: 'Start ${scenario.title}',
+            style: IconButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => context.push(
+              '/chat/roleplay',
+              extra: RoleplayLaunchArgs(scenario),
+            ),
+            icon: const Icon(Icons.arrow_forward_rounded),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _DialogTextField extends StatelessWidget {
+class _HistorySheet extends StatelessWidget {
+  final List<Map<String, dynamic>> history;
+
+  const _HistorySheet({required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = history
+        .where((item) => item['status'] == 'complete')
+        .toList(growable: false);
+    return SafeArea(
+      top: false,
+      child: Column(
+        children: [
+          Container(
+            width: 42,
+            height: 4,
+            margin: const EdgeInsets.only(top: 10, bottom: 18),
+            decoration: BoxDecoration(
+              color: _muted.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Text(
+                  'Roleplay history',
+                  style: GoogleFonts.inter(
+                    color: _text,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: completed.isEmpty
+                ? Center(
+                    child: Text(
+                      'Your completed sessions will appear here.',
+                      style: GoogleFonts.inter(color: _muted),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                    itemCount: completed.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 9),
+                    itemBuilder: (_, index) {
+                      final item = completed[index];
+                      final evaluation = Map<String, dynamic>.from(
+                        item['evaluation'] as Map? ?? {},
+                      );
+                      final scores = Map<String, dynamic>.from(
+                        evaluation['scores'] as Map? ?? {},
+                      );
+                      final task = scores['task_achievement'];
+                      return ListTile(
+                        onTap: () => Navigator.pop(
+                          context,
+                          RoleplayHistoryArgs(
+                            clientSessionId:
+                                item['client_session_id']?.toString() ?? '',
+                            title: item['scenario']?.toString() ?? 'Roleplay',
+                          ),
+                        ),
+                        tileColor: _card,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        title: Text(
+                          item['scenario']?.toString() ?? 'Roleplay',
+                          style: GoogleFonts.inter(
+                            color: _text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${item['message_count'] ?? 0} turns · ${item['duration_seconds'] ?? 0}s · View transcript',
+                          style: GoogleFonts.inter(color: _muted, fontSize: 12),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  task is num ? '${task.round()}' : '—',
+                                  style: GoogleFonts.inter(
+                                    color: _primary,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                Text(
+                                  'task',
+                                  style: GoogleFonts.inter(
+                                    color: _muted,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: _muted,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScenarioBuilderDialog extends StatefulWidget {
+  const _ScenarioBuilderDialog();
+
+  @override
+  State<_ScenarioBuilderDialog> createState() => _ScenarioBuilderDialogState();
+}
+
+class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
+  final _category = TextEditingController();
+  final _title = TextEditingController();
+  final _description = TextEditingController();
+  final _aiRole = TextEditingController();
+  final _learnerRole = TextEditingController();
+  final _opening = TextEditingController();
+  final List<_EditableObjective> _objectives = [];
+  final List<TextEditingController> _phrases = [];
+  final List<_EditableRubric> _rubric = [];
+
+  bool _generating = false;
+  bool _saving = false;
+  String? _error;
+  String? _level;
+  String? _source;
+  String _icon = '🎭';
+
+  bool get _hasDraft => _level != null;
+
+  @override
+  void dispose() {
+    _category.dispose();
+    _title.dispose();
+    _description.dispose();
+    _aiRole.dispose();
+    _learnerRole.dispose();
+    _opening.dispose();
+    _disposeDraftFields();
+    super.dispose();
+  }
+
+  void _disposeDraftFields() {
+    for (final item in _objectives) {
+      item.dispose();
+    }
+    for (final item in _phrases) {
+      item.dispose();
+    }
+    for (final item in _rubric) {
+      item.dispose();
+    }
+    _objectives.clear();
+    _phrases.clear();
+    _rubric.clear();
+  }
+
+  Future<void> _generate() async {
+    if (_category.text.trim().length < 2 ||
+        _title.text.trim().length < 2 ||
+        _description.text.trim().length < 8) {
+      setState(
+        () => _error = 'Add a category, name, and a clear situation first.',
+      );
+      return;
+    }
+    setState(() {
+      _generating = true;
+      _error = null;
+    });
+    try {
+      final value = await ApiService.generateRoleplayScenarioDraft(
+        category: _category.text.trim(),
+        title: _title.text.trim(),
+        description: _description.text.trim(),
+      );
+      if (!mounted) return;
+      _disposeDraftFields();
+      _icon = value['icon']?.toString() ?? '🎭';
+      _level = value['designed_cefr_level']?.toString() ?? 'B1';
+      _source = value['draft_source']?.toString();
+      _aiRole.text = value['ai_role']?.toString() ?? '';
+      _learnerRole.text = value['learner_role']?.toString() ?? '';
+      _opening.text = value['opening']?.toString() ?? '';
+      final objectives = value['objectives'];
+      if (objectives is List) {
+        for (final raw in objectives.whereType<Map>()) {
+          final item = Map<String, dynamic>.from(raw);
+          _objectives.add(
+            _EditableObjective(
+              id: item['id']?.toString() ?? _newId('goal'),
+              label: item['label']?.toString() ?? '',
+              weight: (item['weight'] as num?)?.round().clamp(1, 3) ?? 1,
+            ),
+          );
+        }
+      }
+      final phrases = value['target_language'];
+      if (phrases is List) {
+        _phrases.addAll(
+          phrases.map((item) => TextEditingController(text: item.toString())),
+        );
+      }
+      final rubric = value['evaluation_rubric'];
+      if (rubric is List) {
+        for (final raw in rubric.whereType<Map>()) {
+          final item = Map<String, dynamic>.from(raw);
+          _rubric.add(
+            _EditableRubric(
+              id: item['id']?.toString() ?? _newId('quality'),
+              label: item['label']?.toString() ?? '',
+              description: item['description']?.toString() ?? '',
+            ),
+          );
+        }
+      }
+      setState(() => _generating = false);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _error = '$error';
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final objectiveValues = _objectives
+        .where((item) => item.label.text.trim().length >= 3)
+        .toList();
+    final phraseValues = _phrases
+        .map((item) => item.text.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    final rubricValues = _rubric
+        .where(
+          (item) =>
+              item.label.text.trim().length >= 3 &&
+              item.description.text.trim().length >= 8,
+        )
+        .toList();
+    if (_aiRole.text.trim().length < 3 ||
+        _learnerRole.text.trim().length < 3 ||
+        _opening.text.trim().length < 3 ||
+        objectiveValues.length < 3 ||
+        phraseValues.length < 2 ||
+        rubricValues.length < 2) {
+      setState(
+        () => _error =
+            'Keep at least 3 goals, 2 useful phrases, and 2 complete evaluation criteria.',
+      );
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final value = await ApiService.createRoleplayScenario(
+        category: _category.text.trim(),
+        icon: _icon,
+        title: _title.text.trim(),
+        description: _description.text.trim(),
+        aiRole: _aiRole.text.trim(),
+        learnerRole: _learnerRole.text.trim(),
+        opening: _opening.text.trim(),
+        objectives: objectiveValues
+            .map(
+              (item) => {
+                'id': item.id,
+                'label': item.label.text.trim(),
+                'weight': item.weight,
+                'required': true,
+              },
+            )
+            .toList(growable: false),
+        targetLanguage: phraseValues,
+        evaluationRubric: rubricValues
+            .map(
+              (item) => {
+                'id': item.id,
+                'label': item.label.text.trim(),
+                'description': item.description.text.trim(),
+                'weight': 1,
+              },
+            )
+            .toList(growable: false),
+        designedCefrLevel: _level!,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, RoleplayScenario.fromJson(value));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = '$error';
+      });
+    }
+  }
+
+  String _newId(String prefix) =>
+      '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${_objectives.length + _rubric.length}';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
+      backgroundColor: _card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _hasDraft ? 'Review your scenario' : 'Create a scenario',
+              style: GoogleFonts.inter(
+                color: _text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: _saving ? null : () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded, color: _muted),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 620,
+        height: MediaQuery.sizeOf(context).height * .68,
+        child: _hasDraft ? _draftEditor() : _briefForm(),
+      ),
+      actions: [
+        if (_hasDraft)
+          TextButton(
+            onPressed: _saving
+                ? null
+                : () => setState(() {
+                    _level = null;
+                    _error = null;
+                    _disposeDraftFields();
+                  }),
+            child: const Text('Edit brief'),
+          ),
+        FilledButton.icon(
+          onPressed: _generating || _saving
+              ? null
+              : _hasDraft
+              ? _save
+              : _generate,
+          style: FilledButton.styleFrom(backgroundColor: _primary),
+          icon: _generating || _saving
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(_hasDraft ? Icons.check_rounded : Icons.auto_awesome),
+          label: Text(
+            _generating
+                ? 'Designing…'
+                : _saving
+                ? 'Saving…'
+                : _hasDraft
+                ? 'Save scenario'
+                : 'Generate draft',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _briefForm() {
+    return ListView(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _primary.withValues(alpha: .09),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _primary.withValues(alpha: .25)),
+          ),
+          child: Text(
+            'Describe the situation. ELAF will use your current CEFR level to draft the roles, goals, useful phrases, and evaluation criteria. You review everything before it is saved.',
+            style: GoogleFonts.inter(color: _muted, fontSize: 12, height: 1.45),
+          ),
+        ),
+        const SizedBox(height: 15),
+        _DialogField(controller: _category, label: 'Category'),
+        const SizedBox(height: 12),
+        _DialogField(controller: _title, label: 'Scenario name'),
+        const SizedBox(height: 12),
+        _DialogField(
+          controller: _description,
+          label: 'What should happen?',
+          lines: 4,
+        ),
+        _errorView(),
+      ],
+    );
+  }
+
+  Widget _draftEditor() {
+    return ListView(
+      children: [
+        Row(
+          children: [
+            Text(_icon, style: const TextStyle(fontSize: 25)),
+            const SizedBox(width: 9),
+            _BuilderChip(label: 'Designed for $_level', color: _primary),
+            const SizedBox(width: 7),
+            if (_source == 'reviewable_fallback')
+              const _BuilderChip(
+                label: 'Fallback draft—review carefully',
+                color: _warning,
+              ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        _sectionTitle('Roles and opening'),
+        _DialogField(controller: _aiRole, label: 'AI partner role'),
+        const SizedBox(height: 10),
+        _DialogField(controller: _learnerRole, label: 'Learner role'),
+        const SizedBox(height: 10),
+        _DialogField(controller: _opening, label: 'Opening message', lines: 2),
+        const SizedBox(height: 18),
+        _sectionTitle('Conversation goals'),
+        Text(
+          'A goal is completed only when the learner’s own words provide evidence.',
+          style: GoogleFonts.inter(color: _muted, fontSize: 10),
+        ),
+        const SizedBox(height: 8),
+        for (var index = 0; index < _objectives.length; index++)
+          _editableObjective(index),
+        if (_objectives.length < 6)
+          TextButton.icon(
+            onPressed: () => setState(
+              () => _objectives.add(
+                _EditableObjective(id: _newId('goal'), label: '', weight: 1),
+              ),
+            ),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add goal'),
+          ),
+        const SizedBox(height: 15),
+        _sectionTitle('Useful sentence starters'),
+        for (var index = 0; index < _phrases.length; index++)
+          _editablePhrase(index),
+        if (_phrases.length < 10)
+          TextButton.icon(
+            onPressed: () =>
+                setState(() => _phrases.add(TextEditingController())),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add phrase'),
+          ),
+        const SizedBox(height: 15),
+        _sectionTitle('Scenario-specific evaluation'),
+        Text(
+          'These scores complement task, interaction, grammar, vocabulary, and spoken-delivery measures.',
+          style: GoogleFonts.inter(color: _muted, fontSize: 10, height: 1.4),
+        ),
+        const SizedBox(height: 8),
+        for (var index = 0; index < _rubric.length; index++)
+          _editableRubric(index),
+        if (_rubric.length < 4)
+          TextButton.icon(
+            onPressed: () => setState(
+              () => _rubric.add(
+                _EditableRubric(
+                  id: _newId('quality'),
+                  label: '',
+                  description: '',
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add evaluation criterion'),
+          ),
+        _errorView(),
+      ],
+    );
+  }
+
+  Widget _editableObjective(int index) {
+    final item = _objectives[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: _DialogField(
+              controller: item.label,
+              label: 'Goal ${index + 1}',
+            ),
+          ),
+          const SizedBox(width: 7),
+          _WeightMenu(
+            value: item.weight,
+            onChanged: (value) => setState(() => item.weight = value),
+          ),
+          IconButton(
+            tooltip: 'Remove goal',
+            onPressed: _objectives.length <= 3
+                ? null
+                : () => setState(() {
+                    _objectives.removeAt(index).dispose();
+                  }),
+            icon: const Icon(Icons.close_rounded, color: _muted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _editablePhrase(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: _DialogField(
+              controller: _phrases[index],
+              label: 'Starter ${index + 1}',
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove phrase',
+            onPressed: _phrases.length <= 2
+                ? null
+                : () => setState(() {
+                    _phrases.removeAt(index).dispose();
+                  }),
+            icon: const Icon(Icons.close_rounded, color: _muted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _editableRubric(int index) {
+    final item = _rubric[index];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _DialogField(
+                  controller: item.label,
+                  label: 'Criterion ${index + 1}',
+                ),
+              ),
+              IconButton(
+                tooltip: 'Remove criterion',
+                onPressed: _rubric.length <= 2
+                    ? null
+                    : () => setState(() {
+                        _rubric.removeAt(index).dispose();
+                      }),
+                icon: const Icon(Icons.close_rounded, color: _muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          _DialogField(
+            controller: item.description,
+            label: 'What good performance looks like',
+            lines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        value,
+        style: GoogleFonts.inter(
+          color: _text,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _errorView() {
+    if (_error == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Text(
+        _error!,
+        style: GoogleFonts.inter(color: const Color(0xFFF87171), fontSize: 11),
+      ),
+    );
+  }
+}
+
+class _EditableObjective {
+  final String id;
+  final TextEditingController label;
+  int weight;
+
+  _EditableObjective({
+    required this.id,
+    required String label,
+    required this.weight,
+  }) : label = TextEditingController(text: label);
+
+  void dispose() => label.dispose();
+}
+
+class _EditableRubric {
+  final String id;
+  final TextEditingController label;
+  final TextEditingController description;
+
+  _EditableRubric({
+    required this.id,
+    required String label,
+    required String description,
+  }) : label = TextEditingController(text: label),
+       description = TextEditingController(text: description);
+
+  void dispose() {
+    label.dispose();
+    description.dispose();
+  }
+}
+
+class _WeightMenu extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _WeightMenu({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButton<int>(
+      value: value,
+      dropdownColor: _cardInner,
+      underline: const SizedBox.shrink(),
+      iconEnabledColor: _muted,
+      style: GoogleFonts.inter(color: _text, fontSize: 11),
+      items: const [
+        DropdownMenuItem(value: 1, child: Text('1×')),
+        DropdownMenuItem(value: 2, child: Text('2×')),
+        DropdownMenuItem(value: 3, child: Text('3×')),
+      ],
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    );
+  }
+}
+
+class _BuilderChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _BuilderChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogField extends StatelessWidget {
   final TextEditingController controller;
-  final String hint;
-  final int maxLines;
-  const _DialogTextField({required this.controller, required this.hint, this.maxLines = 1});
+  final String label;
+  final int lines;
+
+  const _DialogField({
+    required this.controller,
+    required this.label,
+    this.lines = 1,
+  });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      maxLines: maxLines,
-      style: GoogleFonts.inter(color: _textPrimary),
+      maxLines: lines,
+      style: GoogleFonts.inter(color: _text),
       decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.inter(color: _textSecondary, fontSize: 13),
+        labelText: label,
+        labelStyle: GoogleFonts.inter(color: _muted),
         filled: true,
-        fillColor: _surfaceCard2,
+        fillColor: _surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(13),
           borderSide: const BorderSide(color: _border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _primary),
         ),
       ),
     );
   }
 }
 
-class _GradientButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _GradientButton({required this.label, required this.onTap});
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_primary, _accent]),
-          borderRadius: BorderRadius.circular(10),
+    return ListView(
+      padding: const EdgeInsets.all(28),
+      children: [
+        const SizedBox(height: 120),
+        const Icon(Icons.cloud_off_rounded, color: _muted, size: 42),
+        const SizedBox(height: 14),
+        Text(
+          'Could not load roleplays',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            color: _text,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700),
+        const SizedBox(height: 6),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(color: _muted, fontSize: 12),
         ),
-      ),
+        const SizedBox(height: 18),
+        Center(
+          child: FilledButton(
+            onPressed: onRetry,
+            style: FilledButton.styleFrom(backgroundColor: _primary),
+            child: const Text('Try again'),
+          ),
+        ),
+      ],
     );
   }
 }

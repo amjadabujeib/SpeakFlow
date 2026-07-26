@@ -1,12 +1,21 @@
 fastapi
 uvicorn
-openai
+websockets
 requests
 numpy
 soundfile
+cmudict==1.1.3
+xgboost==3.3.0
+g2p-en==2.1.0
+webrtcvad-wheels==2.0.14
+SQLAlchemy>=2.0,<2.1
+alembic>=1.13,<2
+psycopg[binary]>=3.2,<4
+pgvector>=0.3,<1
+ollama>=0.5,<1
+pydantic>=2.10,<3
+openai>=2.0,<3
 
-# GECToR (grammar correction with RoBERTa)
-# These should be installed in the correct conda env
-# transformers
-# gector
-# torch
+# WhisperX, PyTorch, librosa, Kokoro, Transformers, and GECToR are supplied by
+# the local whisperx environment; normal application startup never downloads
+# or trains models.

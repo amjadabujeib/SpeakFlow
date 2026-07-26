@@ -1,39 +1,200 @@
 // lib/shared/widgets/settings_drawer.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+import 'package:just_talk/core/theme/local_fonts.dart';
+import '../../core/auth/auth_session_store.dart';
+import '../../core/data/phoneme_progress_store.dart';
+import '../../core/data/practice_word_store.dart';
+import '../../core/services/api_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/providers/app_state.dart';
-import '../../core/data/mock_data.dart';
+import '../../plp/plp_repository.dart';
 
 class SettingsDrawer extends StatefulWidget {
   final AppState appState;
+  final PlpRepository? repository;
 
-  const SettingsDrawer({super.key, required this.appState});
+  const SettingsDrawer({super.key, required this.appState, this.repository});
 
   @override
   State<SettingsDrawer> createState() => _SettingsDrawerState();
 }
 
 class _SettingsDrawerState extends State<SettingsDrawer> {
+  late final PlpRepository _repository;
   late String _selectedMotherTongue;
   late String _selectedCefrLevel;
+  late Set<String> _selectedInterests;
   late double _fontSize;
+  List<String> _learningGoals = const ['Speak confidently'];
+  bool _loadingProfile = true;
+  bool _regenerating = false;
+  bool _signingOut = false;
+
+  static const _languages = [
+    'Arabic',
+    'Kurdish',
+    'Turkish',
+    'French',
+    'Spanish',
+  ];
+  static const _levels = ['A1', 'A2', 'B1', 'B2'];
+  static const _interests = [
+    'Technology',
+    'Travel',
+    'Business',
+    'Education',
+    'Culture',
+    'Science',
+    'Sports',
+    'Daily life',
+    'Music',
+    'History',
+  ];
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? HttpPlpRepository();
     _selectedMotherTongue = widget.appState.motherTongue;
     _selectedCefrLevel = widget.appState.cefrLevel;
+    _selectedInterests = widget.appState.interests.toSet();
     _fontSize = widget.appState.fontSize;
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await _repository.loadProfile();
+      if (!mounted) return;
+      final goals = (profile['learning_goals'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+      final interests = (profile['interests'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+      setState(() {
+        _selectedMotherTongue =
+            profile['native_language']?.toString() ?? _selectedMotherTongue;
+        _selectedCefrLevel =
+            profile['cefr_level']?.toString() ?? _selectedCefrLevel;
+        if (goals.isNotEmpty) _learningGoals = goals;
+        if (interests.isNotEmpty) _selectedInterests = interests;
+        _loadingProfile = false;
+      });
+      widget.appState.setMotherTongue(_selectedMotherTongue);
+      widget.appState.setCefrLevel(_selectedCefrLevel);
+      widget.appState.setInterests(_selectedInterests.toList());
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingProfile = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load your learning profile: $error')),
+      );
+    }
+  }
+
+  Future<void> _regeneratePlan() async {
+    if (_loadingProfile || _regenerating) return;
+    if (_selectedInterests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose at least one interest.')),
+      );
+      return;
+    }
+    setState(() => _regenerating = true);
+    try {
+      await _repository.saveProfile({
+        'cefr_level': _selectedCefrLevel,
+        'native_language': _selectedMotherTongue,
+        'learning_goals': _learningGoals,
+        'interests': _selectedInterests.toList(),
+      });
+      await _repository.generatePlan();
+      if (!mounted) return;
+      widget.appState.setMotherTongue(_selectedMotherTongue);
+      widget.appState.setCefrLevel(_selectedCefrLevel);
+      widget.appState.setInterests(_selectedInterests.toList());
+      widget.appState.requestPlanRefresh();
+      widget.appState.setTab(0);
+      final messenger = ScaffoldMessenger.of(context);
+      final router = GoRouter.maybeOf(context);
+      Navigator.pop(context);
+      router?.go('/home');
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Your new plan is now being built on Home.'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not regenerate your plan: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _regenerating = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    if (_signingOut) return;
+    final auth = AuthSessionStore.instance;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(auth.isGuest ? 'Leave guest session?' : 'Sign out?'),
+        content: Text(
+          auth.isGuest
+              ? 'This guest cannot be recovered after you sign out. You can create an account if you want progress that you can return to later.'
+              : 'You can sign back in with your email and password. Your plan, progress, and conversations will stay with your account.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(auth.isGuest ? 'Leave guest' : 'Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _signingOut = true);
+    final router = GoRouter.of(context);
+    try {
+      if (auth.isGuest) {
+        await PracticeWordStore.instance.clear();
+        await PhonemeProgressStore.instance.clear();
+      }
+      await ApiService.signOut();
+    } catch (_) {
+      // ApiService still removes the local session when the backend is
+      // unreachable, so the learner is never left stuck in an account.
+    }
+    if (!mounted) return;
+    Navigator.pop(context);
+    router.go('/auth');
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = widget.appState.isDarkMode;
     final bg = isDark ? AppColors.surface : AppColors.lightSurface;
-    final textPrimary = isDark ? AppColors.textPrimary : AppColors.lightTextPrimary;
-    final textSecondary = isDark ? AppColors.textSecondary : AppColors.lightTextSecondary;
-    final cardBg = isDark ? AppColors.surfaceElevated : AppColors.lightSurfaceElevated;
+    final textPrimary = isDark
+        ? AppColors.textPrimary
+        : AppColors.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppColors.textSecondary
+        : AppColors.lightTextSecondary;
+    final cardBg = isDark
+        ? AppColors.surfaceElevated
+        : AppColors.lightSurfaceElevated;
     final border = isDark ? AppColors.border : AppColors.lightBorder;
 
     return Drawer(
@@ -55,7 +216,11 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                       gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.tune_rounded, color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.tune_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -91,8 +256,11 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.text_fields_rounded,
-                                color: AppColors.primary, size: 20),
+                            const Icon(
+                              Icons.text_fields_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Text(
                               'Font Size',
@@ -107,10 +275,10 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                               _fontSize == 0.85
                                   ? 'Small'
                                   : _fontSize == 1.0
-                                      ? 'Medium'
-                                      : _fontSize == 1.15
-                                          ? 'Large'
-                                          : 'X-Large',
+                                  ? 'Medium'
+                                  : _fontSize == 1.15
+                                  ? 'Large'
+                                  : 'X-Large',
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -134,10 +302,34 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('A', style: GoogleFonts.inter(fontSize: 11, color: textSecondary)),
-                            Text('A', style: GoogleFonts.inter(fontSize: 14, color: textSecondary)),
-                            Text('A', style: GoogleFonts.inter(fontSize: 17, color: textSecondary)),
-                            Text('A', style: GoogleFonts.inter(fontSize: 20, color: textSecondary)),
+                            Text(
+                              'A',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: textSecondary,
+                              ),
+                            ),
+                            Text(
+                              'A',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: textSecondary,
+                              ),
+                            ),
+                            Text(
+                              'A',
+                              style: GoogleFonts.inter(
+                                fontSize: 17,
+                                color: textSecondary,
+                              ),
+                            ),
+                            Text(
+                              'A',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                color: textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -156,8 +348,11 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.translate_rounded,
-                                color: AppColors.accent, size: 20),
+                            const Icon(
+                              Icons.translate_rounded,
+                              color: AppColors.accent,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Text(
                               'Mother Tongue',
@@ -173,10 +368,15 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                         DropdownButtonFormField<String>(
                           value: _selectedMotherTongue,
                           dropdownColor: cardBg,
-                          style: GoogleFonts.inter(fontSize: 14, color: textPrimary),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: textPrimary,
+                          ),
                           decoration: InputDecoration(
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(color: border),
@@ -186,10 +386,15 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                               borderSide: BorderSide(color: border),
                             ),
                             filled: true,
-                            fillColor: isDark ? AppColors.surface : AppColors.lightBackground,
+                            fillColor: isDark
+                                ? AppColors.surface
+                                : AppColors.lightBackground,
                           ),
-                          items: MockData.languages
-                              .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                          items: _languages
+                              .map(
+                                (l) =>
+                                    DropdownMenuItem(value: l, child: Text(l)),
+                              )
                               .toList(),
                           onChanged: (v) {
                             if (v != null) {
@@ -212,8 +417,11 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.bar_chart_rounded,
-                                color: AppColors.accent, size: 20),
+                            const Icon(
+                              Icons.bar_chart_rounded,
+                              color: AppColors.accent,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Text(
                               'CEFR Level',
@@ -229,31 +437,42 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: MockData.cefrLevels.map((l) {
-                            final isSelected = _selectedCefrLevel == l['level'];
+                          children: _levels.map((level) {
+                            final isSelected = _selectedCefrLevel == level;
                             return GestureDetector(
                               onTap: () {
-                                setState(() => _selectedCefrLevel = l['level']!);
-                                widget.appState.setCefrLevel(l['level']!);
+                                setState(() => _selectedCefrLevel = level);
                               },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
-                                  gradient: isSelected ? AppColors.primaryGradient : null,
-                                  color: isSelected ? null : (isDark ? AppColors.surface : AppColors.lightBackground),
+                                  gradient: isSelected
+                                      ? AppColors.primaryGradient
+                                      : null,
+                                  color: isSelected
+                                      ? null
+                                      : (isDark
+                                            ? AppColors.surface
+                                            : AppColors.lightBackground),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: isSelected ? Colors.transparent : border,
+                                    color: isSelected
+                                        ? Colors.transparent
+                                        : border,
                                   ),
                                 ),
                                 child: Text(
-                                  l['level']!,
+                                  level,
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: isSelected ? Colors.white : textSecondary,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : textSecondary,
                                   ),
                                 ),
                               ),
@@ -274,8 +493,11 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.interests_rounded,
-                                color: AppColors.accent, size: 20),
+                            const Icon(
+                              Icons.interests_rounded,
+                              color: AppColors.accent,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Text(
                               'Interests',
@@ -291,29 +513,40 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: MockData.interests.map((interest) {
-                            final isSelected = widget.appState.interests.contains(interest);
+                          children: _interests.map((interest) {
+                            final isSelected = _selectedInterests.contains(
+                              interest,
+                            );
                             return GestureDetector(
                               onTap: () {
-                                final updated =
-                                    List<String>.from(widget.appState.interests);
-                                if (isSelected) {
-                                  updated.remove(interest);
-                                } else {
-                                  updated.add(interest);
-                                }
-                                widget.appState.setInterests(updated);
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedInterests.remove(interest);
+                                  } else if (_selectedInterests.length < 3) {
+                                    _selectedInterests.add(interest);
+                                  }
+                                });
                               },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
-                                  gradient: isSelected ? AppColors.primaryGradient : null,
-                                  color: isSelected ? null : (isDark ? AppColors.surface : AppColors.lightBackground),
+                                  gradient: isSelected
+                                      ? AppColors.primaryGradient
+                                      : null,
+                                  color: isSelected
+                                      ? null
+                                      : (isDark
+                                            ? AppColors.surface
+                                            : AppColors.lightBackground),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: isSelected ? Colors.transparent : border,
+                                    color: isSelected
+                                        ? Colors.transparent
+                                        : border,
                                   ),
                                 ),
                                 child: Text(
@@ -321,7 +554,9 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
-                                    color: isSelected ? Colors.white : textSecondary,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : textSecondary,
                                   ),
                                 ),
                               ),
@@ -336,51 +571,121 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
 
                   // Regenerate plan button
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Regenerating your learning plan...',
-                            style: GoogleFonts.inter(fontSize: 13),
-                          ),
-                          backgroundColor: AppColors.primary,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.auto_awesome_rounded,
-                              color: Colors.white, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Regenerate Learning Plan',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                    onTap: _loadingProfile || _regenerating
+                        ? null
+                        : _regeneratePlan,
+                    child: Opacity(
+                      opacity: _loadingProfile || _regenerating ? 0.65 : 1,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (_regenerating)
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            else
+                              const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _regenerating
+                                  ? 'Creating your roadmap...'
+                                  : 'Apply changes & build plan',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionLabel(label: 'Account', textColor: textSecondary),
+                  const SizedBox(height: 8),
+                  _SettingsCard(
+                    bg: cardBg,
+                    border: border,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppColors.primary.withValues(
+                            alpha: 0.16,
+                          ),
+                          foregroundColor: AppColors.primary,
+                          child: Icon(
+                            AuthSessionStore.instance.isGuest
+                                ? Icons.bolt_rounded
+                                : Icons.person_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AuthSessionStore.instance.user?['display_name']
+                                        ?.toString() ??
+                                    'Learner',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                AuthSessionStore.instance.isGuest
+                                    ? 'Temporary guest'
+                                    : AuthSessionStore.instance.user?['email']
+                                              ?.toString() ??
+                                          'Registered account',
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _signingOut ? null : _signOut,
+                          child: _signingOut
+                              ? const SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Sign out'),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -420,7 +725,11 @@ class _SettingsCard extends StatelessWidget {
   final Widget child;
   final Color bg;
   final Color border;
-  const _SettingsCard({required this.child, required this.bg, required this.border});
+  const _SettingsCard({
+    required this.child,
+    required this.bg,
+    required this.border,
+  });
 
   @override
   Widget build(BuildContext context) {
