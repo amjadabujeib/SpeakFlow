@@ -5,15 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_talk/core/theme/app_colors.dart';
-import 'package:just_talk/core/theme/app_theme.dart';
-import 'package:just_talk/features/home/home_tab.dart';
-import 'package:just_talk/lesson_screens.dart';
-import 'package:just_talk/plp/first_run_gate.dart';
-import 'package:just_talk/plp/learning_plan_screen.dart';
-import 'package:just_talk/plp/onboarding_screen.dart';
-import 'package:just_talk/plp/plp_models.dart';
-import 'package:just_talk/plp/plp_repository.dart';
+import 'package:speakflow/core/theme/app_colors.dart';
+import 'package:speakflow/core/theme/app_theme.dart';
+import 'package:speakflow/features/home/home_tab.dart';
+import 'package:speakflow/lesson_screens.dart';
+import 'package:speakflow/plp/first_run_gate.dart';
+import 'package:speakflow/plp/learning_plan_screen.dart';
+import 'package:speakflow/plp/onboarding_screen.dart';
+import 'package:speakflow/plp/plp_models.dart';
+import 'package:speakflow/plp/plp_repository.dart';
 
 class _FixedRepository extends PlpRepository {
   final PlpDocument document;

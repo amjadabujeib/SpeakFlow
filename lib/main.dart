@@ -20,17 +20,17 @@ Future<void> main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const JustTalkApp());
+  runApp(const SpeakFlowApp());
 }
 
-class JustTalkApp extends StatefulWidget {
-  const JustTalkApp({super.key});
+class SpeakFlowApp extends StatefulWidget {
+  const SpeakFlowApp({super.key});
 
   @override
-  State<JustTalkApp> createState() => _JustTalkAppState();
+  State<SpeakFlowApp> createState() => _SpeakFlowAppState();
 }
 
-class _JustTalkAppState extends State<JustTalkApp> {
+class _SpeakFlowAppState extends State<SpeakFlowApp> {
   bool _isDark = true;
 
   void _toggleTheme() {
@@ -40,7 +40,7 @@ class _JustTalkAppState extends State<JustTalkApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'JustTalk',
+      title: 'SpeakFlow',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

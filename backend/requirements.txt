@@ -4,6 +4,7 @@ websockets
 requests
 numpy
 soundfile
+scipy>=1.11,<2
 cmudict==1.1.3
 xgboost==3.3.0
 g2p-en==2.1.0

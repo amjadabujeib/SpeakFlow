@@ -1,7 +1,7 @@
 // lib/shared/widgets/settings_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import '../../core/auth/auth_session_store.dart';
 import '../../core/data/phoneme_progress_store.dart';
 import '../../core/data/practice_word_store.dart';

@@ -3,7 +3,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -27,7 +27,7 @@ bool isPracticePronunciationPass(Map<String, dynamic>? scores) {
       completeness >= 90;
 }
 
-// ─── Colors (matching ELAF dark theme) ───────────────────────
+// ─── Colors (matching SpeakFlow dark theme) ──────────────────
 const _background = Color(0xFF090E1A);
 const _surface = Color(0xFF111827);
 const _surfaceCard = Color(0xFF1E2D45);
@@ -365,8 +365,8 @@ class _PronunciationScreenState extends State<PronunciationScreen>
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Pronounced correctly. This target was removed from '
-                          'your practice list.',
+                          'Pronounced correctly. This target was moved to '
+                          'your Mastered words.',
                           style: TextStyle(color: _textPrimary, height: 1.35),
                         ),
                       ),
@@ -423,8 +423,8 @@ class _PronunciationScreenState extends State<PronunciationScreen>
           Expanded(
             child: Text(
               widget.onPassed != null
-                  ? 'Say the selected target exactly as shown. It leaves your '
-                        'practice list only after a correct result.'
+                  ? 'Say the selected target exactly as shown. A correct '
+                        'result moves it to your Mastered words.'
                   : 'Enter a word or sentence, then speak the exact target. '
                         'Unclear or mismatched audio is rejected instead of '
                         'guessed.',
@@ -600,11 +600,6 @@ class _PronunciationScreenState extends State<PronunciationScreen>
     }
 
     final ipa = _guide?['ipa']?.toString() ?? '';
-    final phonemes =
-        (_guide?['phonemes'] as List<dynamic>? ?? const <dynamic>[])
-            .map((item) => item.toString())
-            .where((item) => item.isNotEmpty)
-            .toList(growable: false);
     return Container(
       key: const ValueKey('pronunciation-guide'),
       padding: const EdgeInsets.all(16),
@@ -655,47 +650,6 @@ class _PronunciationScreenState extends State<PronunciationScreen>
               ),
             ],
           ),
-          if (phonemes.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'PHONEMES',
-              style: GoogleFonts.inter(
-                color: _textSecondary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.7,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final phoneme in phonemes)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _primary.withValues(alpha: 0.24),
-                      ),
-                    ),
-                    child: Text(
-                      phoneme,
-                      style: GoogleFonts.inter(
-                        color: _textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
         ],
       ),
     ).animate().fadeIn(duration: 300.ms);
@@ -936,7 +890,7 @@ class _PronunciationScreenState extends State<PronunciationScreen>
               const Icon(Icons.graphic_eq_rounded, color: _accent, size: 18),
               const SizedBox(width: 8),
               Text(
-                'Phonetic Alignment (IPA)',
+                'Phone analysis (IPA)',
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -962,11 +916,26 @@ class _PronunciationScreenState extends State<PronunciationScreen>
                 _ => _warning,
               };
               final quality = charData['score'];
+              final likelyIpa = charData['likely_ipa']?.toString();
+              final closestIpa = charData['closest_ipa']?.toString();
+              final errorType = charData['error_type']?.toString();
+              final tooltip = quality is! num
+                  ? 'Omitted / not acoustically scored'
+                  : status == 'incorrect' &&
+                        errorType == 'substitution' &&
+                        likelyIpa != null &&
+                        likelyIpa.isNotEmpty
+                  ? 'Target /$char/ • sounded closer to /$likelyIpa/ • quality ${quality.round()}%'
+                  : status == 'incorrect' && errorType == 'deletion'
+                  ? 'Target /$char/ may have been omitted • quality ${quality.round()}%'
+                  : status == 'warning' &&
+                        closestIpa != null &&
+                        closestIpa.isNotEmpty
+                  ? 'Target /$char/ needs attention • closest acoustic guess /$closestIpa/ • quality ${quality.round()}%'
+                  : '${status == 'warning' ? 'Needs attention' : status} • quality ${quality.round()}%';
 
               return Tooltip(
-                    message: quality is num
-                        ? '${status == 'warning' ? 'Uncertain' : status} • quality ${quality.round()}%'
-                        : 'Omitted / not acoustically scored',
+                    message: tooltip,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,

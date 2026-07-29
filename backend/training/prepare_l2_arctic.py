@@ -116,6 +116,17 @@ def phone_label(event: dict) -> float:
     raise ValueError(f"unsupported canonical event type {error_type}")
 
 
+def realized_phone(event: dict) -> str | None:
+    """Return the human-perceived phone used to evaluate substitutions."""
+    if event["error_type"] == "deletion":
+        return None
+    if event["error_type"] == "correct":
+        return pure(canonical_phone(event))
+    perceived = (event.get("perceived_phoneme") or "").upper()
+    perceived = pure(perceived)
+    return perceived if perceived in VALID_PHONES else None
+
+
 def add_noise(clean: np.ndarray, partner: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, float]:
     if len(partner) < len(clean):
         repeats = math.ceil(len(clean) / max(1, len(partner)))
@@ -148,6 +159,7 @@ def build_example(row: dict, dictionary) -> dict:
     if len(phones) > 50:
         raise ValueError("more than 50 canonical phones")
     labels = tuple(phone_label(event) for event in canonical_events)
+    realized = tuple(realized_phone(event) for event in canonical_events)
     words, word_phones = segment_by_words(row["transcript"], phones, dictionary)
 
     phone_to_word = []
@@ -180,6 +192,7 @@ def build_example(row: dict, dictionary) -> dict:
         "phones": list(phones),
         "pure_phones": [pure(phone) for phone in phones],
         "phone_labels": list(labels),
+        "realized_phones": list(realized),
         "word_labels": word_labels,
         "addition_counts": addition_counts,
         "utterance_accuracy": utterance_accuracy,
@@ -203,9 +216,7 @@ def main() -> None:
     if args.output.exists():
         shutil.rmtree(args.output)
     audio_root = args.output / "audio"
-    job_dir = args.output / "kaldi_job"
     audio_root.mkdir(parents=True)
-    job_dir.mkdir(parents=True)
 
     examples = []
     skipped = defaultdict(int)
@@ -255,31 +266,6 @@ def main() -> None:
     with (args.output / "manifest.jsonl").open("w", encoding="utf-8") as handle:
         for example in examples:
             handle.write(json.dumps(example, ensure_ascii=False) + "\n")
-
-    wav_lines, text_lines, utt2spk_lines, phone_lines = [], [], [], []
-    lexicon_lines = set()
-    speakers = defaultdict(list)
-    for example in examples:
-        utterance = example["id"]
-        speakers[example["speaker"]].append(utterance)
-        wav_lines.append(f"{utterance} /training/{example['audio']}")
-        text_lines.append(f"{utterance} {example['transcript']}")
-        utt2spk_lines.append(f"{utterance} {example['speaker']}")
-        for word_index, (word, phones) in enumerate(zip(example["words"], example["word_phones"])):
-            lexicon_lines.add(f"{word} {' '.join(phones)}")
-            phone_lines.append(f"{utterance}.{word_index} {' '.join(marked_phones(tuple(phones)))}")
-
-    files = {
-        "wav.scp": wav_lines,
-        "text": text_lines,
-        "utt2spk": utt2spk_lines,
-        "spk2utt": [f"{speaker} {' '.join(sorted(utterances))}" for speaker, utterances in sorted(speakers.items())],
-        "lexicon.txt": sorted(lexicon_lines),
-        "text-phone": phone_lines,
-    }
-    for name, lines in files.items():
-        (job_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    shutil.copyfile(Path(__file__).with_name("extract_gop_batch.sh"), args.output / "extract_gop_batch.sh")
 
     counts = defaultdict(int)
     for example in examples:

@@ -34,6 +34,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Downloaded pronunciation acoustic checkpoint (1.26 GB).
+/backend/pretrained_models/wav2vec2_xlsr53_cmu39_ctc/
+
 # Symbolication related
 app.*.symbols
 

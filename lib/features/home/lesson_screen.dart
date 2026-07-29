@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 

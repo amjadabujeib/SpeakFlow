@@ -1,6 +1,6 @@
 // lib/shared/widgets/dictionary_popup.dart
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_service.dart';

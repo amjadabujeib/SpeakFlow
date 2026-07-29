@@ -1,7 +1,7 @@
 // lib/core/theme/app_theme.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {

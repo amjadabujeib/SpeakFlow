@@ -720,6 +720,9 @@ class RoleplayTranscriptTurnView(StrictModel):
     input_mode: Literal["text", "audio"]
     user_text: str
     assistant_text: str
+    grammar_corrected_text: str | None = Field(default=None, max_length=3000)
+    grammar_feedback: str | None = Field(default=None, max_length=1200)
+    word_confidence: list[dict] = Field(default_factory=list, max_length=1000)
     created_at: datetime
 
 

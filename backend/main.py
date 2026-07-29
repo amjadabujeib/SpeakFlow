@@ -8,6 +8,7 @@ import re
 import socket
 import tempfile
 import threading
+from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 import requests
 import numpy as np
@@ -23,14 +24,14 @@ import soundfile as sf
 import difflib
 import webrtcvad
 from openai import OpenAI
-from pronunciation_service import (
-    KaldiGoptScorer,
+from pronunciation_core import (
     LocalG2pCanonicalizer,
     PronunciationScoringError,
     arpabet_to_ipa,
     calculate_overall_score,
     normalized_english_words,
 )
+from ctc_pronunciation_service import Wav2Vec2GoptScorer
 from plp import plp_service, router as plp_router
 from auth_api import router as auth_router
 from auth_service import (
@@ -100,7 +101,7 @@ except ImportError:
     print("Warning: gector not found. Grammar correction will be disabled.")
     GECTOR_AVAILABLE = False
 
-app = FastAPI(title="ELAF Backend", version="2.0.0")
+app = FastAPI(title="SpeakFlow Backend", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -183,6 +184,7 @@ _model_load_lock = threading.RLock()
 _kokoro_inference_lock = threading.Lock()
 _failed_model_loads: set[str] = set()
 _chat_inference_lock = asyncio.Lock()
+_gector_root = Path(__file__).resolve().parent.parent / "roberta" / "gector"
 
 
 def _load_gector_model() -> bool:
@@ -197,12 +199,12 @@ def _load_gector_model() -> bool:
             return True
         try:
             print("Loading GECToR RoBERTa Grammar Model on first use...")
-            model_id = "/home/amjad/Desktop/ELAF/roberta/gector/gector-roberta-base-5k"
+            model_id = str(_gector_root / "gector-roberta-base-5k")
             gector_tokenizer = AutoTokenizer.from_pretrained(model_id)
             gector_model = GECToR.from_pretrained(model_id)
             gector_model.to(device)
             gector_encode, gector_decode = load_verb_dict(
-                "/home/amjad/Desktop/ELAF/roberta/gector/data/verb-form-vocab.txt"
+                str(_gector_root / "data" / "verb-form-vocab.txt")
             )
             print("GECToR loaded successfully!")
             return True
@@ -287,7 +289,7 @@ def _load_kokoro_pipeline() -> bool:
 
 
 def _load_pronunciation_scorer() -> bool:
-    """Load the strict Practice scorer only for a Practice request."""
+    """Load the CTC Practice scorer only for a Practice request."""
     global pronunciation_scorer
     if pronunciation_scorer is not None:
         return True
@@ -297,8 +299,8 @@ def _load_pronunciation_scorer() -> bool:
         if pronunciation_scorer is not None:
             return True
         try:
-            pronunciation_scorer = KaldiGoptScorer()
-            print("Kaldi + GOPT pronunciation scorer loaded successfully!")
+            pronunciation_scorer = Wav2Vec2GoptScorer()
+            print("XLSR-53 CTC-GOP + GOPT pronunciation scorer loaded successfully!")
             return True
         except Exception as exc:
             pronunciation_scorer = None
@@ -754,7 +756,7 @@ def _chat_delivery_metrics(
 ) -> tuple[int | None, int | None]:
     """Estimate free-speech fluency and pitch variation without a target text.
 
-    These are intentionally separate from Practice's target-dependent Kaldi/GOPT
+    These are intentionally separate from Practice's target-dependent acoustic/GOPT
     scores. A chat utterance has no canonical sentence to force-align against.
     """
     duration = len(audio_array) / 16000.0
@@ -2213,6 +2215,36 @@ PHONE_ARTICULATION_REFERENCE = {
 }
 
 
+def local_pronunciation_coaching(phone_evidence: list[dict]) -> str | None:
+    """Return useful correction even when optional AI coaching is unavailable."""
+    lines: list[str] = []
+    for item in phone_evidence[:5]:
+        arpabet = str(item.get("arpabet", ""))
+        pure_arpabet = arpabet.rstrip("012")
+        target_ipa = str(item.get("phoneme") or "?")
+        reference = PHONE_ARTICULATION_REFERENCE.get(
+            pure_arpabet,
+            "Repeat the target slowly and compare it with the Listen example.",
+        )
+        prefix = f"/{target_ipa}/ needs attention."
+        likely_ipa = item.get("likely_ipa")
+        closest_ipa = item.get("closest_ipa")
+        if likely_ipa:
+            prefix = (
+                f"/{target_ipa}/ sounded closer to /{likely_ipa}/. "
+                "This replacement passed the acoustic confidence gate."
+            )
+        elif item.get("error_type") == "deletion":
+            prefix = f"/{target_ipa}/ may have been omitted."
+        elif closest_ipa:
+            prefix = (
+                f"/{target_ipa}/ needs attention. The model's closest acoustic "
+                f"guess was /{closest_ipa}/."
+            )
+        lines.append(f"{prefix} {reference}")
+    return "\n".join(lines) if lines else None
+
+
 def get_pronunciation_coaching(target_text: str, flagged_phones: list[dict]):
     """Generate articulation advice without letting an LLM alter scores."""
     if not flagged_phones:
@@ -2233,6 +2265,14 @@ def get_pronunciation_coaching(target_text: str, flagged_phones: list[dict]):
                     "severe_error_probability"
                 ),
                 "blended_error_severity_percent": item.get("error_severity"),
+                "likely_replacement_ipa": item.get("likely_ipa"),
+                "likely_replacement_arpabet": item.get("likely_arpabet"),
+                "replacement_confidence_percent": item.get(
+                    "likely_phone_probability"
+                ),
+                "closest_unverified_ipa": item.get("closest_ipa"),
+                "replacement_verified": item.get("replacement_verified", False),
+                "acoustic_error_type": item.get("error_type"),
                 "trusted_articulation_reference": PHONE_ARTICULATION_REFERENCE.get(
                     pure_arpabet,
                     "Give conservative general advice and do not invent a mouth position.",
@@ -2259,8 +2299,10 @@ def get_pronunciation_coaching(target_text: str, flagged_phones: list[dict]):
         "incorrect, and do not mention phones that were not supplied. Each drill must "
         "tell the learner what words or syllables to repeat and must use the supplied "
         "target word. Do not output JSON. "
-        "The acoustic model did not identify the exact substitute sound, so never claim "
-        "that the learner produced a particular replacement phone. Do not change or "
+        "A likely replacement sound is supplied only when the local CTC model passed "
+        "its confidence gate. You may contrast that supplied replacement with the "
+        "target, but never invent or infer a replacement when its value is null. "
+        "Phrase it as likely (for example, 'sounded closer to'), not as certainty. Do not change or "
         "reinterpret the numeric scores. Output only the coaching text."
     )
 
@@ -2438,8 +2480,8 @@ def _transcribe_practice_audio(audio_array):
 def _speech_activity(audio_array: np.ndarray, sample_rate: int = 16000) -> dict:
     """Return conservative WebRTC speech-presence diagnostics.
 
-    Kaldi forced alignment always tries to find the requested phones, even in
-    noise. This gate must pass before any pronunciation score is allowed.
+    Noise can still produce overconfident acoustic posteriors. This gate must
+    pass before any pronunciation score is allowed.
     """
     if sample_rate != 16000:
         raise ValueError("speech activity detection requires 16 kHz audio")
@@ -2539,7 +2581,7 @@ def _word_match_similarity(
     candidate: str,
     phone_cache: dict[str, tuple[str, ...] | None] | None = None,
 ) -> float:
-    """Compare ASR words with spelling and the same local G2P used by Kaldi."""
+    """Compare ASR words with spelling and the same local Practice G2P."""
     if expected == candidate:
         return 1.0
     orthographic = difflib.SequenceMatcher(None, expected, candidate).ratio()
@@ -2742,11 +2784,63 @@ def _single_word_transcript_matches(target: str, spoken: str) -> bool:
             if candidate == expected or candidate not in fillers
         ]
     # A target word appearing somewhere in a longer sentence is not a valid
-    # one-word attempt; otherwise Kaldi can force the short target onto the
-    # best matching fragment and return an inflated score.
+    # one-word attempt; otherwise a short target can match only one fragment of
+    # a longer recording and return an inflated score.
     if len(candidates) != 1:
         return False
     return _word_match_similarity(expected, candidates[0]) >= 0.55
+
+
+def _single_word_transcript_is_one_attempt(spoken: str) -> bool:
+    """Allow one decoded word plus at most one ordinary hesitation filler."""
+    words = list(normalized_english_words(spoken))
+    if len(words) == 2:
+        fillers = {"a", "the", "uh", "um", "hmm"}
+        words = [word for word in words if word not in fillers]
+    return len(words) == 1
+
+
+def _single_word_acoustically_contradicted(result: dict) -> bool:
+    """Return true only when CTC confidently contradicts every target phone.
+
+    Incomplete/test results without CTC counterfactual phone evidence cannot
+    independently justify rejecting an intelligible single-word attempt.
+    """
+    analysis = result.get("analysis")
+    if not isinstance(analysis, list) or not analysis:
+        return False
+    calibration = result.get("calibration") or {}
+    try:
+        confidence_threshold = float(
+            calibration.get("substitution_confidence_threshold", 20.0)
+        )
+    except (TypeError, ValueError):
+        confidence_threshold = 20.0
+    if confidence_threshold <= 1.0:
+        confidence_threshold *= 100.0
+
+    for item in analysis:
+        if not isinstance(item, dict):
+            return False
+        expected = re.sub(r"\d+$", "", str(item.get("arpabet", "")).upper())
+        if not expected:
+            return False
+        likely_value = item.get("likely_arpabet")
+        likely = (
+            re.sub(r"\d+$", "", str(likely_value).upper())
+            if likely_value is not None
+            else None
+        )
+        if likely == expected:
+            return False
+        try:
+            likely_confidence = float(item.get("likely_phone_probability", 0.0))
+            deletion_confidence = float(item.get("deletion_probability", 0.0))
+        except (TypeError, ValueError):
+            return False
+        if max(likely_confidence, deletion_confidence) <= confidence_threshold:
+            return False
+    return True
 
 
 @app.post("/api/pronunciation")
@@ -2839,11 +2933,10 @@ async def check_pronunciation(
             )
 
         target_word_count = len(normalized_english_words(target_word))
-        # WebRTC can mistake harmonic phone/microphone hum for speech. Kaldi's
-        # forced alignment would then fit the requested phones to that noise and
-        # can return deceptively high scores. Require WhisperX's independent
+        # WebRTC can mistake harmonic phone/microphone hum for speech. Require
+        # WhisperX's independent
         # pyannote speech detector/decoder to find intelligible speech before
-        # allowing Kaldi to score any recording, including a single word.
+        # allowing the pronunciation model to score any recording, including a single word.
         if whisper_model is None and not await asyncio.to_thread(
             _load_whisper_models
         ):
@@ -2868,22 +2961,26 @@ async def check_pronunciation(
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "The local Kaldi + GOPT pronunciation scorer is not available. "
+                    "The local CTC pronunciation scorer is not available. "
                     "Check the backend log."
                 ),
             )
-        if target_word_count == 1 and not _single_word_transcript_matches(
-            target_word, spoken_text
+        if (
+            target_word_count == 1
+            and not _single_word_transcript_is_one_attempt(spoken_text)
         ):
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f'The recording does not appear to contain the target word. '
-                    f'The local recognizer heard: "{spoken_text}".'
+                    f'Please say only the target word "{target_word}" and try again.'
                 ),
             )
+        single_word_asr_match = (
+            target_word_count != 1
+            or _single_word_transcript_matches(target_word, spoken_text)
+        )
 
-        # Give Kaldi a predictable 16 kHz mono PCM file, independent of the
+        # Give the selected acoustic model predictable 16 kHz mono PCM, independent of the
         # format produced by the phone's recorder.
         sf.write(temp_audio_path, audio_array, 16000, subtype="PCM_16")
         try:
@@ -2899,9 +2996,28 @@ async def check_pronunciation(
                 detail="The local pronunciation engine failed. Check the backend log for details.",
             ) from exc
 
+        if (
+            target_word_count == 1
+            and not single_word_asr_match
+            and _single_word_acoustically_contradicted(result)
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "The target word could not be verified from this recording. "
+                    f'Please say only "{target_word}" and try again.'
+                ),
+            )
+
         completeness_note = ""
         result["spoken"] = spoken_text
         result["whisper_confidence"] = whisper_confidence
+        result["asr_target_match"] = single_word_asr_match
+        if target_word_count == 1 and not single_word_asr_match:
+            result.setdefault("warnings", []).append(
+                "The local recognizer disagreed, so this result was verified "
+                "using acoustic phoneme evidence."
+            )
         if target_word_count >= 2:
             _apply_sentence_word_alignment(result, target_word, spoken_text)
             result["scores"]["overall_score"] = calculate_overall_score(result["scores"])
@@ -2920,6 +3036,7 @@ async def check_pronunciation(
                 result["feedback"] = completeness_note + result["feedback"]
 
         flagged_phones = result.get("flagged_phones") or []
+        uncertain_phones = result.get("uncertain_phones") or []
         if flagged_phones:
             coaching, coaching_error, coaching_source = await asyncio.to_thread(
                 get_pronunciation_coaching, target_word, flagged_phones
@@ -2928,11 +3045,19 @@ async def check_pronunciation(
                 result["feedback"] = completeness_note + coaching
                 result["feedback_source"] = coaching_source
             else:
+                local_coaching = local_pronunciation_coaching(flagged_phones)
+                if local_coaching:
+                    result["feedback"] = completeness_note + local_coaching
                 result["feedback_source"] = "local_acoustic_summary"
                 if coaching_error:
                     result.setdefault("warnings", []).append(
                         "AI pronunciation coaching was unavailable; showing local acoustic feedback."
                     )
+        elif uncertain_phones:
+            local_coaching = local_pronunciation_coaching(uncertain_phones)
+            if local_coaching:
+                result["feedback"] = completeness_note + local_coaching
+            result["feedback_source"] = "local_acoustic_correction"
         else:
             result["feedback_source"] = "local_acoustic_summary"
 
@@ -2983,6 +3108,7 @@ def health() -> dict:
             "whisperx_installed": WHISPER_AVAILABLE,
             "whisperx_loaded": whisper_model is not None,
             "pronunciation_loaded": pronunciation_scorer is not None,
+            "pronunciation_engine": "ctc",
         },
         "grammar_loaded": gector_model is not None,
         "tts_loaded": kokoro_pipeline is not None,

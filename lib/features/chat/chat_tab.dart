@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 
 import '../../core/services/api_service.dart';
 import 'roleplay_models.dart';
@@ -790,7 +790,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
             border: Border.all(color: _primary.withValues(alpha: .25)),
           ),
           child: Text(
-            'Describe the situation. ELAF will use your current CEFR level to draft the roles, goals, useful phrases, and evaluation criteria. You review everything before it is saved.',
+            'Describe the situation. SpeakFlow will use your current CEFR level to draft the roles, goals, useful phrases, and evaluation criteria. You review everything before it is saved.',
             style: GoogleFonts.inter(color: _muted, fontSize: 12, height: 1.45),
           ),
         ),

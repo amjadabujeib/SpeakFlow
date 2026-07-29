@@ -1,6 +1,6 @@
 // lib/features/news/news_tab.dart
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../shared/widgets/dictionary_popup.dart';
 import '../../core/providers/app_state.dart';

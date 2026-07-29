@@ -1,4 +1,4 @@
-# ELAF / JustTalk
+# SpeakFlow
 
 Flutter English-learning client with a FastAPI backend. Registered accounts
 and disposable guests have separate plans, progress, practice data, roleplay
@@ -9,7 +9,7 @@ support, news, and a durable four-week personalized learning plan (PLP).
 ## Run locally
 
 1. Copy `.env.example` to `.env` and configure the constrained PLP writer.
-2. Ensure the local PostgreSQL and Kaldi assets described below are installed.
+2. Ensure the local PostgreSQL and pronunciation model assets described below are installed.
 3. Start the complete Android development stack:
 
 ```bash
@@ -26,7 +26,7 @@ Useful checks:
 cd backend
 /home/amjad/whisperx-env/bin/alembic -c alembic.ini current
 PYTHONPATH=. /home/amjad/whisperx-env/bin/python -m unittest \
-  test_pronunciation_features test_pronunciation_service \
+  test_ctc_gop test_pronunciation_features test_pronunciation_service \
   test_pronunciation_endpoint test_plp test_weekly_mission \
   test_plp_v3_service test_curriculum_graph test_roleplay_engine \
   test_roleplay_persistence test_multi_user_auth
@@ -39,15 +39,17 @@ flutter analyze
 ## Speech scoring boundary
 
 - Scripted words/sentences use audio gates, local WhisperX validation, local
-  G2P, Dockerized Kaldi GOP, Arabic-L1 calibrated error/severity models, GOPT,
-  and deterministic aggregation. Invalid evidence returns an error; there is
-  no heuristic or transcript-match scoring fallback.
+  G2P, XLSR-53 alignment-free 41D CTC-GOP, calibrated Arabic-L1 phone
+  models, GOPT, and deterministic aggregation. CTC is the only pronunciation
+  engine; invalid or incompatible evidence returns an error.
 - Free roleplay speech has no known target. It therefore reports nullable
   WhisperX recognition confidence and separately labelled timing/pause
   fluency and pitch-variation estimates. It does not claim phone accuracy or
   completeness.
 - The Arabic-L1 phone models were evaluated on four L2-ARCTIC speakers. Orange
   feedback means uncertainty; only conservative red phones are diagnoses.
+  Likely substitutions are reported only after the separate CTC
+  counterfactual-confidence gate passes.
 
 ## Personalized learning plan
 

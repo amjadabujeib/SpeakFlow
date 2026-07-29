@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/data/phoneme_progress_store.dart';
@@ -19,7 +19,7 @@ const _textSecondary = Color(0xFF8896B0);
 
 // ─────────────────────────── Data ─────────────────────────────
 
-enum _WordFilter { all, needsChecking, roleplay, addedByMe }
+enum _WordFilter { all, needsChecking, roleplay, addedByMe, mastered }
 
 // ──────────────────── Score Color Helper ──────────────────────
 Color _scoreColor(int score) {
@@ -69,9 +69,11 @@ class _PracticeTabState extends State<PracticeTab> {
         .where((word) {
           return switch (_wordFilter) {
             _WordFilter.all => true,
-            _WordFilter.needsChecking => !word.addedManually && word.score < 80,
-            _WordFilter.roleplay => !word.addedManually,
-            _WordFilter.addedByMe => word.addedManually,
+            _WordFilter.needsChecking =>
+              !word.isMastered && !word.addedManually && word.score < 80,
+            _WordFilter.roleplay => !word.isMastered && !word.addedManually,
+            _WordFilter.addedByMe => !word.isMastered && word.addedManually,
+            _WordFilter.mastered => word.isMastered,
           };
         })
         .toList(growable: false);
@@ -89,7 +91,7 @@ class _PracticeTabState extends State<PracticeTab> {
       '/pronunciation',
       extra: PronunciationLaunchArgs(
         target: word.word,
-        onPassed: () => _wordStore.removeWord(word),
+        onPassed: () => _wordStore.markMastered(word),
       ),
     );
   }
@@ -260,6 +262,12 @@ class _WordPracticeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeWords = words
+        .where((word) => !word.isMastered)
+        .toList(growable: false);
+    final masteredWords = words
+        .where((word) => word.isMastered)
+        .toList(growable: false);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
@@ -270,17 +278,49 @@ class _WordPracticeSection extends StatelessWidget {
         const SizedBox(height: 14),
         if (words.isEmpty)
           _EmptyWordQueue(filter: filter)
-        else
-          ...List.generate(words.length, (i) {
+        else ...[
+          if (filter == _WordFilter.all && activeWords.isNotEmpty) ...[
+            const _WordSectionTitle(
+              title: 'To practice',
+              icon: Icons.pending_actions_rounded,
+              color: _warning,
+            ),
+            const SizedBox(height: 8),
+          ],
+          ...List.generate(activeWords.length, (i) {
+            final word = activeWords[i];
             return _WordCard(
-                  entry: words[i],
-                  onPractice: () => onPractice(words[i]),
-                  onDelete: () => onDelete(words[i]),
+                  entry: word,
+                  onPractice: () => onPractice(word),
+                  onDelete: () => onDelete(word),
                 )
                 .animate(delay: Duration(milliseconds: 60 * i))
                 .fadeIn(duration: 350.ms)
                 .slideY(begin: 0.15, end: 0);
           }),
+          if (filter == _WordFilter.all && masteredWords.isNotEmpty) ...[
+            if (activeWords.isNotEmpty) const SizedBox(height: 14),
+            const _WordSectionTitle(
+              title: 'Mastered',
+              icon: Icons.verified_rounded,
+              color: _success,
+            ),
+            const SizedBox(height: 8),
+          ],
+          ...List.generate(masteredWords.length, (i) {
+            final word = masteredWords[i];
+            return _WordCard(
+                  entry: word,
+                  onPractice: () => onPractice(word),
+                  onDelete: () => onDelete(word),
+                )
+                .animate(
+                  delay: Duration(milliseconds: 60 * (activeWords.length + i)),
+                )
+                .fadeIn(duration: 350.ms)
+                .slideY(begin: 0.15, end: 0);
+          }),
+        ],
         const SizedBox(height: 20),
         _AddWordSection(
           ctrl: addWordCtrl,
@@ -302,6 +342,7 @@ class _WordFilters extends StatelessWidget {
     _WordFilter.needsChecking: 'Needs checking',
     _WordFilter.roleplay: 'Roleplay',
     _WordFilter.addedByMe: 'Added by me',
+    _WordFilter.mastered: 'Mastered',
   };
 
   @override
@@ -362,7 +403,11 @@ class _EmptyWordQueue extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            filtered ? 'No words match this filter' : 'Your queue is clear',
+            filter == _WordFilter.mastered
+                ? 'No mastered words yet'
+                : filtered
+                ? 'No words match this filter'
+                : 'Your queue is clear',
             textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
               color: _textPrimary,
@@ -372,7 +417,9 @@ class _EmptyWordQueue extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            filtered
+            filter == _WordFilter.mastered
+                ? 'Words move here after you pronounce them correctly.'
+                : filtered
                 ? 'Choose another filter to see the rest of your words.'
                 : 'Words the roleplay recognizer was unsure about will appear here for verification.',
             textAlign: TextAlign.center,
@@ -384,6 +431,36 @@ class _EmptyWordQueue extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _WordSectionTitle extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+
+  const _WordSectionTitle({
+    required this.title,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 17),
+        const SizedBox(width: 7),
+        Text(
+          title,
+          style: GoogleFonts.outfit(
+            color: _textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -402,7 +479,11 @@ class _WordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = entry.addedManually ? _primary : _warning;
+    final borderColor = entry.isMastered
+        ? _success
+        : entry.addedManually
+        ? _primary
+        : _warning;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -464,6 +545,7 @@ class _WordCard extends StatelessWidget {
                         score: entry.score,
                         unscored: entry.addedManually,
                         recognitionCheck: !entry.addedManually,
+                        mastered: entry.isMastered,
                       ),
                       const SizedBox(width: 10),
                       if (entry.source.isNotEmpty)
@@ -516,16 +598,22 @@ class _ScorePill extends StatelessWidget {
   final int score;
   final bool unscored;
   final bool recognitionCheck;
+  final bool mastered;
 
   const _ScorePill({
     required this.score,
     this.unscored = false,
     this.recognitionCheck = false,
+    this.mastered = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = unscored ? _primary : _scoreColor(score);
+    final color = mastered
+        ? _success
+        : unscored
+        ? _primary
+        : _scoreColor(score);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
@@ -534,7 +622,9 @@ class _ScorePill extends StatelessWidget {
         border: Border.all(color: color.withAlpha(100), width: 1),
       ),
       child: Text(
-        unscored
+        mastered
+            ? 'Mastered'
+            : unscored
             ? 'New'
             : recognitionCheck
             ? 'Check · $score%'

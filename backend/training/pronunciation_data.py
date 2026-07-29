@@ -1,4 +1,4 @@
-"""Shared loader for prepared Arabic-L1 pronunciation training data."""
+"""Shared loader for prepared Arabic-L1 CTC-GOP pronunciation data."""
 
 from __future__ import annotations
 
@@ -8,11 +8,12 @@ from pathlib import Path
 
 import numpy as np
 
-from pronunciation_service import GOPT_FEATURE_DIM, GOPT_PHONE_TO_ID
+from ctc_gop import CTC_GOP_FEATURE_DIM
+from pronunciation_core import GOPT_PHONE_TO_ID
 
 
 DEFAULT_DATA_ROOT = Path.home() / "english_learning_app_data"
-DEFAULT_ARABIC_DATASET = DEFAULT_DATA_ROOT / "l2_arctic_arabic"
+DEFAULT_ARABIC_DATASET = DEFAULT_DATA_ROOT / "l2_arctic_arabic_ctc"
 DEFAULT_MANUAL_DATASET = DEFAULT_DATA_ROOT / "l2_arctic_manual"
 
 
@@ -28,83 +29,39 @@ class Example:
     utterance_target: float
 
 
-def _read_feature_vectors(path: Path) -> dict[str, np.ndarray]:
-    """Read Kaldi's one-vector-per-phone text archive."""
-    vectors: dict[str, list[tuple[int, np.ndarray]]] = {}
-    pending_key: str | None = None
-    pending_values: list[str] = []
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if pending_key is None:
-            if "[" not in line:
-                continue
-            pending_key, line = line.split("[", 1)
-            pending_key = pending_key.strip()
-            pending_values = []
-        if "]" in line:
-            before, _ = line.split("]", 1)
-            pending_values.extend(before.split())
-            values = np.asarray(
-                [float(value) for value in pending_values], dtype=np.float32
-            )
-            if values.shape != (GOPT_FEATURE_DIM + 1,):
-                raise ValueError(
-                    f"{pending_key} has shape {values.shape}, expected (85,)"
-                )
-            utterance_id, phone_index_text = pending_key.rsplit(".", 1)
-            vectors.setdefault(utterance_id, []).append(
-                (int(phone_index_text), values)
-            )
-            pending_key = None
-            pending_values = []
-        else:
-            pending_values.extend(line.split())
-
-    if pending_key is not None:
-        raise ValueError(f"unterminated Kaldi vector: {pending_key}")
-    return {
-        utterance_id: np.stack([value for _, value in sorted(items)])
-        for utterance_id, items in vectors.items()
-    }
-
-
-def _phone_table(path: Path) -> dict[int, str]:
-    return {
-        int(phone_id): phone
-        for phone, phone_id in (
-            line.split() for line in path.read_text(encoding="utf-8").splitlines()
-        )
-    }
-
-
-def load_examples(data_root: Path) -> list[Example]:
-    """Load and strictly validate prepared annotations and Kaldi GOP rows."""
-    feature_root = data_root / "kaldi_output"
-    vectors = _read_feature_vectors(feature_root / "features.txt")
-    phone_table = _phone_table(feature_root / "phones-pure.txt")
+def load_examples(
+    data_root: Path,
+    feature_root: Path | None = None,
+) -> list[Example]:
+    """Load and strictly validate prepared annotations and CTC-GOP rows."""
+    feature_root = feature_root or (data_root / "ctc_gop_output")
+    metadata_path = feature_root / "metadata.json"
+    if not metadata_path.is_file():
+        raise ValueError(f"CTC-GOP extraction metadata is missing: {metadata_path}")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if int(metadata.get("feature_dim", -1)) != CTC_GOP_FEATURE_DIM:
+        raise ValueError("CTC-GOP extraction feature dimension is incompatible")
     examples: list[Example] = []
+    expected_feature_files: set[Path] = set()
 
     with (data_root / "manifest.jsonl").open(encoding="utf-8") as handle:
         for line in handle:
             row = json.loads(line)
             utterance_id = row["id"]
-            matrix = vectors.pop(utterance_id, None)
-            if matrix is None:
-                raise ValueError(f"no GOP features for {utterance_id}")
+            feature_path = feature_root / f"{utterance_id}.npy"
+            expected_feature_files.add(feature_path)
+            if not feature_path.is_file():
+                raise ValueError(f"no CTC-GOP features for {utterance_id}")
+            matrix = np.load(feature_path, allow_pickle=False)
             expected_phones = tuple(row["pure_phones"])
-            if matrix.shape[0] != len(expected_phones):
+            expected_shape = (len(expected_phones), CTC_GOP_FEATURE_DIM)
+            if matrix.shape != expected_shape:
                 raise ValueError(
-                    f"{utterance_id}: {matrix.shape[0]} vectors for "
-                    f"{len(expected_phones)} phones"
+                    f"{utterance_id}: CTC-GOP shape {matrix.shape}, "
+                    f"expected {expected_shape}"
                 )
-            aligned_phones = tuple(
-                phone_table[int(round(value))] for value in matrix[:, 0]
-            )
-            if aligned_phones != expected_phones:
-                raise ValueError(
-                    f"{utterance_id}: aligned phones do not match annotations"
-                )
+            if not np.isfinite(matrix).all():
+                raise ValueError(f"{utterance_id}: CTC-GOP features are non-finite")
 
             word_targets: list[float] = []
             for phones, target in zip(row["word_phones"], row["word_labels"]):
@@ -119,7 +76,7 @@ def load_examples(data_root: Path) -> list[Example]:
                     utterance_id=utterance_id,
                     split=row["split"],
                     variant=row["variant"],
-                    features=matrix[:, 1:],
+                    features=matrix.astype(np.float32, copy=False),
                     phone_ids=np.asarray(
                         [GOPT_PHONE_TO_ID[phone] for phone in expected_phones]
                     ),
@@ -128,6 +85,7 @@ def load_examples(data_root: Path) -> list[Example]:
                     utterance_target=float(row["utterance_accuracy"]),
                 )
             )
-    if vectors:
-        raise ValueError(f"features exist without annotations: {len(vectors)} utterances")
+    extra = set(feature_root.glob("*.npy")) - expected_feature_files
+    if extra:
+        raise ValueError(f"CTC-GOP features exist without annotations: {len(extra)}")
     return examples

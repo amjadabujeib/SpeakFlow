@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_talk/plp/plp_models.dart';
-import 'package:just_talk/plp/plp_repository.dart';
+import 'package:speakflow/plp/plp_models.dart';
+import 'package:speakflow/plp/plp_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

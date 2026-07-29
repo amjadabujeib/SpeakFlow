@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 
 import '../../core/services/api_service.dart';
+import 'roleplay_confidence_transcript.dart';
+import 'roleplay_message_bubbles.dart';
 import 'roleplay_models.dart';
 
 const _background = Color(0xFF090E1A);
 const _surface = Color(0xFF111827);
-const _card = Color(0xFF1A2235);
 const _primary = Color(0xFF4F7FFF);
 const _accent = Color(0xFF8B5CF6);
 const _text = Color(0xFFF1F5FF);
@@ -93,11 +94,14 @@ class _RoleplayHistoryScreenState extends State<RoleplayHistoryScreen> {
           child: Divider(height: 1, color: _border),
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _primary))
-          : _error != null
-          ? _ErrorState(message: _error!, onRetry: _load)
-          : _TranscriptBody(transcript: _transcript!),
+      body: SafeArea(
+        top: false,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: _primary))
+            : _error != null
+            ? _ErrorState(message: _error!, onRetry: _load)
+            : _TranscriptBody(transcript: _transcript!),
+      ),
     );
   }
 }
@@ -109,31 +113,81 @@ class _TranscriptBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = transcript.session;
+    final hasWordConfidence = transcript.turns.any(
+      (turn) => turn.wordConfidence.any((word) => word['score'] is num),
+    );
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
       children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _border),
+        _HistorySessionHeader(
+          transcript: transcript,
+          showConfidenceLegend: hasWordConfidence,
+        ),
+        const SizedBox(height: 22),
+        RoleplayPartnerMessageBubble(text: transcript.scenario.opening),
+        for (final turn in transcript.turns) ...[
+          RoleplayUserMessageBubble(
+            text: turn.userText,
+            correctedText: turn.correctedText,
+            grammarFeedback: turn.grammarFeedback,
+            wordConfidence: turn.wordConfidence,
+            transcriptKey: ValueKey(
+              'history-confidence-transcript-${turn.turnId}',
+            ),
           ),
-          child: Row(
+          RoleplayPartnerMessageBubble(text: turn.assistantText),
+        ],
+      ],
+    );
+  }
+}
+
+class _HistorySessionHeader extends StatelessWidget {
+  final RoleplayTranscript transcript;
+  final bool showConfidenceLegend;
+
+  const _HistorySessionHeader({
+    required this.transcript,
+    required this.showConfidenceLegend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rawDuration = transcript.session['duration_seconds'];
+    final duration = rawDuration is num ? rawDuration.round() : 0;
+    final minutes = duration ~/ 60;
+    final seconds = duration % 60;
+    final turnLabel = transcript.turns.length == 1 ? 'turn' : 'turns';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _primary.withValues(alpha: .16),
+            _accent.withValues(alpha: .09),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _primary.withValues(alpha: .28)),
+      ),
+      child: Column(
+        children: [
+          Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 44,
+                height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: _primary.withValues(alpha: .14),
-                  borderRadius: BorderRadius.circular(11),
+                  color: _surface.withValues(alpha: .72),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: _border),
                 ),
-                child: const Icon(
-                  Icons.history_rounded,
-                  color: _primary,
-                  size: 20,
+                child: Text(
+                  transcript.scenario.icon,
+                  style: const TextStyle(fontSize: 21),
                 ),
               ),
               const SizedBox(width: 12),
@@ -142,128 +196,125 @@ class _TranscriptBody extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Saved conversation · Read-only',
+                      'Conversation replay',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         color: _text,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
-                      '${transcript.turns.length} turns · ${session['duration_seconds'] ?? 0}s',
-                      style: GoogleFonts.inter(color: _muted, fontSize: 11),
+                      '${transcript.turns.length} $turnLabel  •  '
+                      '$minutes:${seconds.toString().padLeft(2, '0')}',
+                      style: GoogleFonts.inter(
+                        color: _muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.lock_outline_rounded, color: _muted, size: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _surface.withValues(alpha: .72),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      color: _muted,
+                      size: 13,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Read only',
+                      style: GoogleFonts.inter(
+                        color: _muted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-        ),
-        const SizedBox(height: 20),
-        _TranscriptBubble(
-          text: transcript.scenario.opening,
-          label: transcript.scenario.aiRole,
-          learner: false,
-        ),
-        for (final turn in transcript.turns) ...[
-          _TranscriptBubble(
-            text: turn.userText,
-            label: transcript.scenario.learnerRole,
-            learner: true,
-            audioTurn: turn.inputMode == 'audio',
-          ),
-          _TranscriptBubble(
-            text: turn.assistantText,
-            label: transcript.scenario.aiRole,
-            learner: false,
-          ),
+          if (showConfidenceLegend) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: _border),
+            const SizedBox(height: 11),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'WORD CONFIDENCE',
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .7,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Wrap(
+              spacing: 12,
+              runSpacing: 7,
+              children: [
+                _LegendItem(
+                  color: RoleplayConfidenceTranscript.highConfidenceColor,
+                  label: 'Clear',
+                ),
+                _LegendItem(
+                  color: RoleplayConfidenceTranscript.mediumConfidenceColor,
+                  label: 'Review',
+                ),
+                _LegendItem(
+                  color: RoleplayConfidenceTranscript.lowConfidenceColor,
+                  label: 'Low',
+                ),
+              ],
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
 
-class _TranscriptBubble extends StatelessWidget {
-  final String text;
+class _LegendItem extends StatelessWidget {
+  final Color color;
   final String label;
-  final bool learner;
-  final bool audioTurn;
 
-  const _TranscriptBubble({
-    required this.text,
-    required this.label,
-    required this.learner,
-    this.audioTurn = false,
-  });
+  const _LegendItem({required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: learner ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * .82,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        margin: EdgeInsets.only(
-          left: learner ? 34 : 0,
-          right: learner ? 0 : 34,
-          bottom: 14,
-        ),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        decoration: BoxDecoration(
-          color: learner ? _primary : _card,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(17),
-            topRight: const Radius.circular(17),
-            bottomLeft: Radius.circular(learner ? 17 : 4),
-            bottomRight: Radius.circular(learner ? 4 : 17),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: _text,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
           ),
-          border: learner ? null : Border.all(color: _border),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (audioTurn) ...[
-                  const Icon(
-                    Icons.mic_rounded,
-                    color: Colors.white70,
-                    size: 12,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      color: learner
-                          ? Colors.white70
-                          : _accent.withValues(alpha: .9),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              text,
-              style: GoogleFonts.inter(
-                color: _text,
-                fontSize: 14,
-                height: 1.45,
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

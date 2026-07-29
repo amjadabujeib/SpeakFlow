@@ -1,20 +1,20 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
+import torch
 
-from pronunciation_service import (
+from ctc_gop import CTC_GOP_FEATURE_DIM, CtcGopResult
+from ctc_pronunciation_service import SCORING_METHOD, Wav2Vec2GoptScorer
+from pronunciation_features import GOP_FEATURE_DIM
+from pronunciation_core import (
     CmuCanonicalizer,
-    KaldiGoptScorer,
+    GOPT_PHONE_TO_ID,
     PronunciationScoringError,
-    _parse_kaldi_matrix,
     calculate_overall_score,
     calculate_word_overall_score,
-    conservative_phone_aggregate,
     normalized_english_words,
-    phone_quality_scores,
 )
 
 
@@ -30,7 +30,7 @@ class CanonicalizerTests(unittest.TestCase):
         result = CmuCanonicalizer().canonicalize("uncharacteristically")
 
         self.assertGreater(len(result.phones), 10)
-        self.assertTrue(all(phone for phone in result.phones))
+        self.assertTrue(all(result.phones))
 
     def test_sentence_can_exceed_one_gopt_window(self):
         result = CmuCanonicalizer().canonicalize(
@@ -40,208 +40,262 @@ class CanonicalizerTests(unittest.TestCase):
         self.assertGreater(len(result.phones), 50)
 
     def test_written_numbers_and_hyphens_have_consistent_words(self):
+        text = "In 2026, say hello-world"
         self.assertEqual(
-            normalized_english_words("In 2026, say hello-world"),
+            normalized_english_words(text),
             ("in", "twenty", "twenty", "six", "say", "hello", "world"),
         )
-        result = CmuCanonicalizer().canonicalize("In 2026, say hello-world")
-        self.assertEqual(tuple(word.lower() for word in result.words), normalized_english_words("In 2026, say hello-world"))
+        result = CmuCanonicalizer().canonicalize(text)
+        self.assertEqual(
+            tuple(word.lower() for word in result.words),
+            normalized_english_words(text),
+        )
 
     def test_oov_uppercase_acronym_is_spelled_as_letters(self):
         result = CmuCanonicalizer().canonicalize("ChatGPT")
 
         self.assertEqual(result.words, ("CHAT", "GPT"))
-        self.assertEqual(result.word_phones[1], ("JH", "IY1", "P", "IY1", "T", "IY1"))
+        self.assertEqual(
+            result.word_phones[1],
+            ("JH", "IY1", "P", "IY1", "T", "IY1"),
+        )
 
     def test_single_word_longer_than_a_gopt_window_is_rejected_cleanly(self):
         with self.assertRaisesRegex(
-            PronunciationScoringError, "single word supports at most 50"
+            PronunciationScoringError,
+            "single word supports at most 50",
         ):
             CmuCanonicalizer().canonicalize("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-    def test_overall_score_matches_the_four_visible_metrics(self):
-        scores = {"accuracy": 80, "fluency": 70, "prosody": 60, "completeness": 50}
-
+    def test_score_helpers_retain_visible_contract(self):
+        scores = {
+            "accuracy": 80,
+            "fluency": 70,
+            "prosody": 60,
+            "completeness": 50,
+        }
         self.assertEqual(calculate_overall_score(scores), 69)
+        self.assertEqual(
+            calculate_word_overall_score(scores),
+            round((80 * 0.8) + (60 * 0.2)),
+        )
 
-    def test_color_boundaries_map_to_eighty_and_sixty_quality(self):
-        scores = phone_quality_scores(np.asarray([0.0, 0.15, 0.30, 1.0]))
 
-        self.assertEqual(scores[0], 100)
-        self.assertAlmostEqual(scores[1], 80, places=4)
-        self.assertAlmostEqual(scores[2], 60, places=4)
-        self.assertEqual(scores[3], 0)
+class FakeExtractor:
+    def __init__(self, likely=None):
+        self.likely = likely
 
-    def test_weak_phone_pulls_down_word_accuracy(self):
-        score = conservative_phone_aggregate([95, 94, 37])
+    def extract(self, audio_path, canonical_phones):
+        count = len(canonical_phones)
+        likely = (
+            tuple(self.likely)
+            if self.likely is not None
+            else tuple(canonical_phones)
+        )
+        return CtcGopResult(
+            features=np.zeros((count, CTC_GOP_FEATURE_DIM), dtype=np.float32),
+            likely_phones=likely,
+            likely_phone_probabilities=np.full(count, 0.8, dtype=np.float32),
+            deletion_probabilities=np.full(count, 0.01, dtype=np.float32),
+        )
 
-        self.assertLess(score, 70)
-        self.assertGreater(score, 55)
 
-    def test_parses_phone_vectors_as_85_values(self):
-        values = " ".join(str(index) for index in range(85))
+class FakeGopt(torch.nn.Module):
+    def forward(self, features, phone_ids):
+        batch = features.shape[0]
+        utterance = [
+            torch.full((batch, 1), value, dtype=torch.float32)
+            for value in (1.6, 2.0, 1.5, 1.4, 1.5)
+        ]
+        phone = torch.zeros(
+            (batch, features.shape[1], 1),
+            dtype=torch.float32,
+        )
+        return (*utterance, phone, phone, phone, phone)
+
+
+class FakeClassifier:
+    def __init__(self, probability):
+        self.probability = probability
+
+    def predict_proba(self, features):
+        count = len(features)
+        values = np.resize(np.asarray(self.probability, dtype=np.float64), count)
+        return np.column_stack((1.0 - values, values))
+
+
+class FakeRegressor:
+    def __init__(self, severity):
+        self.severity = severity
+
+    def predict(self, features):
+        return np.resize(np.asarray(self.severity, dtype=np.float64), len(features))
+
+
+def fake_scorer(
+    *,
+    error=(0.02,),
+    severe=(0.01,),
+    severity=(0.05,),
+    likely=None,
+) -> Wav2Vec2GoptScorer:
+    scorer = object.__new__(Wav2Vec2GoptScorer)
+    scorer.backend_dir = Path(".")
+    scorer.extractor = FakeExtractor(likely)
+    scorer.canonicalizer = CmuCanonicalizer()
+    scorer.model = FakeGopt().eval()
+    scorer.gopt_norm_mean = np.zeros(GOP_FEATURE_DIM, dtype=np.float32)
+    scorer.gopt_norm_std = np.ones(GOP_FEATURE_DIM, dtype=np.float32)
+    scorer.xgb_norm_mean = np.zeros(GOP_FEATURE_DIM, dtype=np.float32)
+    scorer.xgb_norm_std = np.ones(GOP_FEATURE_DIM, dtype=np.float32)
+    scorer.phone_classifier = FakeClassifier(error)
+    scorer.phone_severe_classifier = FakeClassifier(severe)
+    scorer.phone_severity_model = FakeRegressor(severity)
+    scorer.probability_slope = 1.0
+    scorer.probability_intercept = 0.0
+    scorer.severe_probability_slope = 1.0
+    scorer.severe_probability_intercept = 0.0
+    scorer.severity_slope = 1.0
+    scorer.severity_intercept = 0.0
+    scorer.quality_severity_regressor_weight = 1.0
+    scorer.global_red_severe_probability = 0.30
+    scorer.red_severe_probability_by_phone_id = {}
+    scorer.warning_probability_threshold = 0.15
+    scorer.warning_severity_threshold = 0.15
+    scorer.red_minimum_severity = 0.30
+    scorer.substitution_confidence_threshold = 0.20
+    return scorer
+
+
+class Wav2Vec2ScorerTests(unittest.TestCase):
+    def test_missing_ctc_assets_fail_closed_without_loading_legacy_models(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "features.txt"
-            path.write_text(f"practice.0 [ {values} ]\n", encoding="utf-8")
-            matrix = _parse_kaldi_matrix(path)
+            with self.assertRaisesRegex(
+                PronunciationScoringError,
+                "CTC-GOPT assets are missing",
+            ):
+                Wav2Vec2GoptScorer(Path(directory))
 
-        self.assertEqual(matrix.shape, (1, 85))
-        self.assertEqual(matrix[0, 0], 0)
-        self.assertEqual(matrix[0, -1], 84)
+    def test_production_contract_combines_ctc_xgboost_and_gopt(self):
+        result = fake_scorer().score("unused.wav", "car")
 
-    def test_production_routing_combines_arabic_classifier_and_gopt(self):
-        backend_dir = Path(__file__).resolve().parent
-        scorer = KaldiGoptScorer(backend_dir)
-        features = np.zeros((3, 84), dtype=np.float32)
-
-        with patch.object(scorer, "_extract", return_value=features):
-            result = scorer.score("unused.wav", "car")
-
-        self.assertEqual(result["scoring_method"], "kaldi_gop_arabic_loso_severity_gopt_v2")
-        self.assertEqual([item["arpabet"] for item in result["analysis"]], ["K", "AA1", "R"])
-        self.assertEqual(set(result["scores"]), {"accuracy", "completeness", "fluency", "prosody", "overall_score", "gop_score"})
+        self.assertEqual(result["scoring_method"], SCORING_METHOD)
+        self.assertEqual(
+            [item["arpabet"] for item in result["analysis"]],
+            ["K", "AA1", "R"],
+        )
+        self.assertEqual(
+            set(result["scores"]),
+            {
+                "accuracy",
+                "completeness",
+                "fluency",
+                "prosody",
+                "overall_score",
+                "gop_score",
+            },
+        )
         self.assertEqual(result["scores"]["completeness"], 100)
-        self.assertEqual(result["scores"]["gop_score"], calculate_word_overall_score(result["scores"]))
-        self.assertEqual(result["scores"]["overall_score"], result["scores"]["gop_score"])
-        for value in result["scores"].values():
-            self.assertGreaterEqual(value, 0)
-            self.assertLessEqual(value, 100)
+        self.assertEqual(
+            result["scores"]["gop_score"],
+            calculate_word_overall_score(result["scores"]),
+        )
         for item in result["analysis"]:
-            self.assertIn("correct_probability", item)
-            self.assertIn("error_probability", item)
-            self.assertIn("error_severity", item)
+            self.assertIn("likely_arpabet", item)
+            self.assertIn("deletion_probability", item)
 
-    def test_recalibration_uses_green_warning_and_red_states(self):
-        backend_dir = Path(__file__).resolve().parent
-        scorer = KaldiGoptScorer(backend_dir)
-        features = np.zeros((4, 84), dtype=np.float32)
-        probabilities = np.asarray([
-            [0.98, 0.02],
-            [0.85, 0.15],
-            [0.80, 0.20],
-            [0.60, 0.40],
-        ])
-        severe_probabilities = np.asarray([
-            [0.99, 0.01],
-            [0.99, 0.01],
-            [0.80, 0.20],
-            [0.10, 0.90],
-        ])
-        severities = np.asarray([0.05, 0.15, 0.20, 0.50])
+    def test_confident_substitution_is_grounded_in_ctc_counterfactuals(self):
+        scorer = fake_scorer(
+            error=(0.4,),
+            severe=(0.9,),
+            severity=(0.5,),
+            likely=("S", "AA", "R"),
+        )
 
-        with (
-            patch.object(scorer, "_extract", return_value=features),
-            patch.object(scorer.phone_classifier, "predict_proba", return_value=probabilities),
-            patch.object(
-                scorer.phone_severe_classifier,
-                "predict_proba",
-                return_value=severe_probabilities,
-            ),
-            patch.object(
-                scorer.phone_severity_model, "predict", return_value=severities
-            ),
-            patch.object(scorer, "probability_slope", 1.0),
-            patch.object(scorer, "probability_intercept", 0.0),
-            patch.object(scorer, "severe_probability_slope", 1.0),
-            patch.object(scorer, "severe_probability_intercept", 0.0),
-            patch.object(scorer, "severity_slope", 1.0),
-            patch.object(scorer, "severity_intercept", 0.0),
-            patch.object(scorer, "quality_severity_regressor_weight", 1.0),
-            patch.object(scorer, "global_red_severe_probability", 0.30),
-            patch.object(scorer, "red_severe_probability_by_phone_id", {}),
-        ):
-            result = scorer.score("unused.wav", "test")
+        result = scorer.score("unused.wav", "car")
+
+        first = result["analysis"][0]
+        self.assertEqual(first["status"], "incorrect")
+        self.assertEqual(first["error_type"], "substitution")
+        self.assertEqual(first["likely_arpabet"], "S")
+        self.assertEqual(first["likely_ipa"], "s")
+        self.assertIn("sounded closer to /s/", result["feedback"])
+
+    def test_confident_substitution_promotes_warning_to_actionable_error(self):
+        scorer = fake_scorer(
+            error=(0.20,),
+            severe=(0.10,),
+            severity=(0.20,),
+            likely=("S", "AA", "R"),
+        )
+
+        result = scorer.score("unused.wav", "car")
+
+        first = result["analysis"][0]
+        self.assertEqual(first["status"], "incorrect")
+        self.assertTrue(first["replacement_verified"])
+        self.assertEqual(first["likely_ipa"], "s")
+        self.assertEqual(result["flagged_phones"][0]["phone_index"], 0)
+
+    def test_unverified_closest_phone_does_not_become_a_definite_diagnosis(self):
+        scorer = fake_scorer(
+            error=(0.20,),
+            severe=(0.10,),
+            severity=(0.20,),
+            likely=("S", "AA", "R"),
+        )
+        scorer.substitution_confidence_threshold = 1.0
+
+        result = scorer.score("unused.wav", "car")
+
+        first = result["analysis"][0]
+        self.assertEqual(first["status"], "warning")
+        self.assertFalse(first["replacement_verified"])
+        self.assertIsNone(first["likely_ipa"])
+        self.assertEqual(first["closest_ipa"], "s")
+
+    def test_green_warning_and_red_states_are_distinct(self):
+        scorer = fake_scorer(
+            error=(0.02, 0.15, 0.20, 0.40),
+            severe=(0.01, 0.01, 0.20, 0.90),
+            severity=(0.05, 0.15, 0.20, 0.50),
+        )
+
+        result = scorer.score("unused.wav", "test")
 
         self.assertEqual(
             [item["status"] for item in result["analysis"]],
             ["correct", "correct", "warning", "incorrect"],
         )
-        self.assertEqual(
-            [item["error_probability"] for item in result["analysis"]],
-            [2.0, 15.0, 20.0, 40.0],
-        )
-        self.assertEqual(
-            [item["error_severity"] for item in result["analysis"]],
-            [5.0, 15.0, 20.0, 50.0],
-        )
-        self.assertEqual(result["word_scores"][0]["accuracy"], 78)
         self.assertEqual(len(result["flagged_phones"]), 1)
         self.assertEqual(len(result["uncertain_phones"]), 1)
 
-    def test_production_routing_batches_a_long_sentence(self):
-        backend_dir = Path(__file__).resolve().parent
-        scorer = KaldiGoptScorer(backend_dir)
-        target = "I would like to practice a complete sentence and then practice another sentence"
+    def test_long_sentence_is_batched_at_word_boundaries(self):
+        scorer = fake_scorer()
+        target = (
+            "I would like to practice a complete sentence and then practice "
+            "another sentence"
+        )
         pronunciation = scorer.canonicalizer.canonicalize(target)
-        features = np.zeros((len(pronunciation.phones), 84), dtype=np.float32)
 
-        with patch.object(scorer, "_extract", return_value=features):
-            result = scorer.score("unused.wav", target)
+        result = scorer.score("unused.wav", target)
 
+        self.assertGreater(len(pronunciation.phones), 50)
         self.assertEqual(len(result["analysis"]), len(pronunciation.phones))
         self.assertEqual(len(result["word_scores"]), len(pronunciation.words))
 
-    def test_non_finite_v2_model_output_fails_instead_of_scoring(self):
-        backend_dir = Path(__file__).resolve().parent
-        scorer = KaldiGoptScorer(backend_dir)
-        features = np.zeros((3, 84), dtype=np.float32)
+    def test_non_finite_model_output_is_rejected(self):
+        scorer = fake_scorer(severity=(0.1, np.nan, 0.2))
 
-        with (
-            patch.object(scorer, "_extract", return_value=features),
-            patch.object(
-                scorer.phone_severity_model,
-                "predict",
-                return_value=np.asarray([0.1, np.nan, 0.2]),
-            ),
+        with self.assertRaisesRegex(
+            PronunciationScoringError,
+            "malformed values",
         ):
-            with self.assertRaisesRegex(
-                PronunciationScoringError, "malformed values"
-            ):
-                scorer.score("unused.wav", "car")
+            scorer.score("unused.wav", "car")
 
-    def test_quality_blends_error_likelihood_with_regressor_severity(self):
-        backend_dir = Path(__file__).resolve().parent
-        scorer = KaldiGoptScorer(backend_dir)
-        features = np.zeros((2, 84), dtype=np.float32)
-        any_error = np.asarray([[0.95, 0.05], [0.55, 0.45]])
-        severe_error = np.asarray([[0.99, 0.01], [0.99, 0.01]])
-
-        with (
-            patch.object(scorer, "_extract", return_value=features),
-            patch.object(
-                scorer.phone_classifier, "predict_proba", return_value=any_error
-            ),
-            patch.object(
-                scorer.phone_severe_classifier,
-                "predict_proba",
-                return_value=severe_error,
-            ),
-            patch.object(
-                scorer.phone_severity_model,
-                "predict",
-                return_value=np.asarray([0.10, 0.10]),
-            ),
-            patch.object(scorer, "probability_slope", 1.0),
-            patch.object(scorer, "probability_intercept", 0.0),
-            patch.object(scorer, "severe_probability_slope", 1.0),
-            patch.object(scorer, "severe_probability_intercept", 0.0),
-            patch.object(scorer, "severity_slope", 1.0),
-            patch.object(scorer, "severity_intercept", 0.0),
-            patch.object(scorer, "quality_severity_regressor_weight", 0.5),
-        ):
-            result = scorer.score("unused.wav", "we")
-
-        self.assertEqual(
-            [item["model_error_severity"] for item in result["analysis"]],
-            [10.0, 10.0],
-        )
-        self.assertEqual(
-            [item["error_severity"] for item in result["analysis"]],
-            [7.5, 27.5],
-        )
-        self.assertGreater(
-            result["analysis"][0]["score"], result["analysis"][1]["score"]
-        )
+    def test_phone_mapping_still_contains_all_cmu39_phones(self):
+        self.assertEqual(len(GOPT_PHONE_TO_ID), 39)
+        self.assertEqual(set(GOPT_PHONE_TO_ID.values()), set(range(39)))
 
 
 if __name__ == "__main__":

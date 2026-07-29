@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/data/phoneme_progress_store.dart';
-import 'package:just_talk/features/practice/practice_tab.dart';
-import 'package:just_talk/features/shell/main_shell.dart';
-import 'package:just_talk/core/providers/app_state.dart';
+import 'package:speakflow/core/data/phoneme_progress_store.dart';
+import 'package:speakflow/features/practice/practice_tab.dart';
+import 'package:speakflow/features/shell/main_shell.dart';
+import 'package:speakflow/core/providers/app_state.dart';
 
 void main() {
   test('measured phoneme progress survives JSON persistence', () {

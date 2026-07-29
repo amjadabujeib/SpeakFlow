@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../auth/auth_session_store.dart';
 
+const _unchangedPracticeWordValue = Object();
+
 class PracticeWordCandidate {
   final String word;
   final int score;
@@ -19,6 +21,7 @@ class PracticeWord {
   final int score;
   final String source;
   final DateTime addedAt;
+  final DateTime? masteredAt;
   final int occurrences;
   final bool addedManually;
 
@@ -28,14 +31,18 @@ class PracticeWord {
     required this.score,
     required this.source,
     required this.addedAt,
+    this.masteredAt,
     required this.occurrences,
     required this.addedManually,
   });
+
+  bool get isMastered => masteredAt != null;
 
   PracticeWord copyWith({
     int? score,
     String? source,
     DateTime? addedAt,
+    Object? masteredAt = _unchangedPracticeWordValue,
     int? occurrences,
     bool? addedManually,
   }) {
@@ -45,6 +52,9 @@ class PracticeWord {
       score: score ?? this.score,
       source: source ?? this.source,
       addedAt: addedAt ?? this.addedAt,
+      masteredAt: identical(masteredAt, _unchangedPracticeWordValue)
+          ? this.masteredAt
+          : masteredAt as DateTime?,
       occurrences: occurrences ?? this.occurrences,
       addedManually: addedManually ?? this.addedManually,
     );
@@ -56,6 +66,7 @@ class PracticeWord {
     'score': score,
     'source': source,
     'added_at': addedAt.toIso8601String(),
+    'mastered_at': masteredAt?.toIso8601String(),
     'occurrences': occurrences,
     'added_manually': addedManually,
   };
@@ -69,6 +80,7 @@ class PracticeWord {
       addedAt:
           DateTime.tryParse(json['added_at']?.toString() ?? '') ??
           DateTime.now(),
+      masteredAt: DateTime.tryParse(json['mastered_at']?.toString() ?? ''),
       occurrences: (json['occurrences'] as num?)?.round().clamp(1, 999) ?? 1,
       addedManually: json['added_manually'] == true,
     );
@@ -88,6 +100,11 @@ class PracticeWordStore extends ChangeNotifier {
     _activateCurrentUser();
     final result = List<PracticeWord>.from(_words);
     result.sort((a, b) {
+      if (a.isMastered != b.isMastered) return a.isMastered ? 1 : -1;
+      if (a.isMastered && b.isMastered) {
+        final byMasteredAt = b.masteredAt!.compareTo(a.masteredAt!);
+        if (byMasteredAt != 0) return byMasteredAt;
+      }
       if (a.addedManually != b.addedManually) {
         return a.addedManually ? 1 : -1;
       }
@@ -168,6 +185,7 @@ class PracticeWordStore extends ChangeNotifier {
           score: score < existing.score ? score : existing.score,
           source: '$scenario · recognition check',
           addedAt: now,
+          masteredAt: null,
           occurrences: existing.occurrences + 1,
           addedManually: false,
         );
@@ -201,6 +219,17 @@ class PracticeWordStore extends ChangeNotifier {
         ),
       );
     }
+    notifyListeners();
+    await _persist();
+  }
+
+  Future<void> markMastered(PracticeWord word) async {
+    await load();
+    final index = _words.indexWhere(
+      (item) => _key(item.word) == _key(word.word),
+    );
+    if (index == -1) return;
+    _words[index] = _words[index].copyWith(masteredAt: DateTime.now());
     notifyListeners();
     await _persist();
   }

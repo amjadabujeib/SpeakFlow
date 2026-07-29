@@ -1,5 +1,5 @@
-name: just_talk
-description: "JustTalk - AI Language Learning App"
+name: speakflow
+description: "SpeakFlow - AI Language Learning App"
 publish_to: 'none'
 version: 1.0.0+1
 

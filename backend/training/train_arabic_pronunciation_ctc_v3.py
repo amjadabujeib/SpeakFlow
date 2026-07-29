@@ -1,4 +1,4 @@
-"""Train compact context-aware Arabic-L1 pronunciation models.
+"""Train compact context-aware Arabic-L1 CTC-GOP pronunciation models.
 
 Evaluation is leave-one-speaker-out.  Every reported prediction therefore
 comes from a model that did not train on that speaker.  Clean/noisy copies are
@@ -18,18 +18,27 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import average_precision_score, mean_absolute_error, roc_auc_score
 from xgboost import XGBClassifier, XGBRegressor
 
+from ctc_gop import CTC_PHONE_TO_ID
 from pronunciation_features import (
+    GOP_FEATURE_DIM,
     PHONE_CONTEXT_FEATURE_DIM,
     WORD_CONTEXT_FEATURE_DIM,
+    XGB_ACOUSTIC_FEATURE_DIM,
+    build_ctc_evidence_features,
     build_phone_context_features,
     build_word_context_features,
 )
-from pronunciation_service import GOPT_NORM_MEAN, GOPT_NORM_STD, GOPT_PHONE_TO_ID
+from pronunciation_core import GOPT_PHONE_TO_ID
 from training.pronunciation_data import DEFAULT_ARABIC_DATASET, load_examples
 
 
 RED_PHONE_THRESHOLD_SHRINKAGE = 0.75
 QUALITY_SEVERITY_REGRESSOR_WEIGHT = 0.50
+CTC_XGB_NORM_MEAN = 0.0
+CTC_XGB_NORM_STD = 1.0
+LEGACY_PHONE_FEATURE_DIM = XGB_ACOUSTIC_FEATURE_DIM + 40 + 2
+SUBSTITUTION_MINIMUM_PRECISION = 0.60
+SUBSTITUTION_MINIMUM_PREDICTIONS = 20
 
 
 @dataclass(frozen=True)
@@ -175,7 +184,7 @@ def _word_model(seed: int) -> XGBRegressor:
 
 
 def _legacy_error_model(seed: int) -> XGBClassifier:
-    """Reproduce the previous 126-feature classifier for a fair LOSO baseline."""
+    """Train the compact current-phone baseline for a fair LOSO comparison."""
     return XGBClassifier(
         n_estimators=500,
         max_depth=4,
@@ -198,7 +207,140 @@ def _variant_weight(variants: np.ndarray) -> np.ndarray:
     return np.full(len(variants), 0.5, dtype=np.float32)
 
 
-def load_training_data(root: Path) -> tuple[PhoneData, WordData]:
+def _diagnosis_arrays(
+    root: Path,
+    rows: list[dict],
+    *,
+    speakers: set[str] | None = None,
+    feature_root: Path | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    predictions: list[int] = []
+    confidence: list[float] = []
+    realized: list[int] = []
+    canonical: list[int] = []
+    diagnosis_root = (
+        feature_root or (root / "ctc_gop_output")
+    ) / "diagnosis"
+    for row in rows:
+        if row["variant"] != "clean":
+            continue
+        if speakers is not None and row["speaker"] not in speakers:
+            continue
+        with np.load(
+            diagnosis_root / f"{row['id']}.npz",
+            allow_pickle=False,
+        ) as diagnosis:
+            predicted = diagnosis["likely_phone_ids"].astype(np.int64)
+            probability = diagnosis[
+                "likely_phone_probabilities"
+            ].astype(np.float64)
+        expected_count = len(row["pure_phones"])
+        if predicted.shape != (expected_count,) or probability.shape != (
+            expected_count,
+        ):
+            raise ValueError(f"{row['id']}: diagnosis shape is malformed")
+        realized_ids = np.asarray(
+            [
+                0 if phone is None else CTC_PHONE_TO_ID[phone]
+                for phone in row["realized_phones"]
+            ],
+            dtype=np.int64,
+        )
+        predictions.extend(predicted.tolist())
+        confidence.extend(probability.tolist())
+        realized.extend(realized_ids.tolist())
+        canonical.extend(
+            CTC_PHONE_TO_ID[phone] for phone in row["pure_phones"]
+        )
+    return (
+        np.asarray(predictions, dtype=np.int64),
+        np.asarray(confidence, dtype=np.float64),
+        np.asarray(realized, dtype=np.int64),
+        np.asarray(canonical, dtype=np.int64),
+    )
+
+
+def _choose_substitution_threshold(
+    prediction: np.ndarray,
+    confidence: np.ndarray,
+    realized: np.ndarray,
+    canonical: np.ndarray,
+) -> float:
+    candidates = np.unique(
+        np.concatenate(
+            (
+                np.linspace(0.05, 0.95, 91),
+                confidence,
+            )
+        )
+    )
+    best: tuple[float, float] | None = None
+    for threshold in candidates:
+        emitted = (confidence >= threshold) & (prediction != canonical)
+        predicted_count = int(np.sum(emitted))
+        if predicted_count < SUBSTITUTION_MINIMUM_PREDICTIONS:
+            continue
+        precision = float(np.mean(prediction[emitted] == realized[emitted]))
+        correct_count = int(np.sum(emitted & (prediction == realized)))
+        if precision < SUBSTITUTION_MINIMUM_PRECISION:
+            continue
+        candidate = (float(correct_count), -float(threshold))
+        if best is None or candidate > best:
+            best = candidate
+    return 1.0 if best is None else -best[1]
+
+
+def substitution_evaluation(
+    root: Path,
+    rows: list[dict],
+    feature_root: Path | None = None,
+) -> tuple[float, dict]:
+    speaker_names = sorted({row["speaker"] for row in rows})
+    held_out_report = {}
+    for held_out in speaker_names:
+        train_speakers = set(speaker_names) - {held_out}
+        train = _diagnosis_arrays(
+            root,
+            rows,
+            speakers=train_speakers,
+            feature_root=feature_root,
+        )
+        threshold = _choose_substitution_threshold(*train)
+        prediction, confidence, realized, canonical = _diagnosis_arrays(
+            root,
+            rows,
+            speakers={held_out},
+            feature_root=feature_root,
+        )
+        emitted = (confidence >= threshold) & (prediction != canonical)
+        predicted_count = int(np.sum(emitted))
+        correct = int(np.sum(emitted & (prediction == realized)))
+        actual_alternative = realized != canonical
+        held_out_report[held_out] = {
+            "threshold": threshold,
+            "predicted": predicted_count,
+            "precision": correct / max(1, predicted_count),
+            "exact_matches": correct,
+            "exact_match_recall": correct / max(1, int(np.sum(actual_alternative))),
+        }
+    final_arrays = _diagnosis_arrays(
+        root,
+        rows,
+        feature_root=feature_root,
+    )
+    final_threshold = _choose_substitution_threshold(*final_arrays)
+    return final_threshold, {
+        "minimum_precision_target": SUBSTITUTION_MINIMUM_PRECISION,
+        "minimum_predictions": SUBSTITUTION_MINIMUM_PREDICTIONS,
+        "held_out_by_speaker": held_out_report,
+        "final_threshold": final_threshold,
+    }
+
+
+def load_training_data(
+    root: Path,
+    feature_root: Path | None = None,
+) -> tuple[PhoneData, WordData]:
     manifest = {
         row["id"]: row
         for row in (
@@ -224,7 +366,7 @@ def load_training_data(root: Path) -> tuple[PhoneData, WordData]:
     word_speakers: list[np.ndarray] = []
     word_variants: list[np.ndarray] = []
 
-    for example in load_examples(root):
+    for example in load_examples(root, feature_root=feature_root):
         row = manifest[example.utterance_id]
         lengths = [len(value) for value in row["word_phones"]]
         canonical_phones = tuple(row["phones"])
@@ -237,11 +379,16 @@ def load_training_data(root: Path) -> tuple[PhoneData, WordData]:
             example.phone_ids,
             canonical_phones,
             lengths,
-            normalization_mean=GOPT_NORM_MEAN,
-            normalization_std=GOPT_NORM_STD,
+            normalization_mean=CTC_XGB_NORM_MEAN,
+            normalization_std=CTC_XGB_NORM_STD,
         )
         count = len(example.phone_ids)
-        normalized = (example.features - GOPT_NORM_MEAN) / GOPT_NORM_STD
+        normalized = build_ctc_evidence_features(
+            example.features,
+            canonical_phones,
+            normalization_mean=CTC_XGB_NORM_MEAN,
+            normalization_std=CTC_XGB_NORM_STD,
+        )
         one_hot = np.eye(40, dtype=np.float32)[example.phone_ids + 1]
         position = np.arange(count, dtype=np.float32)[:, None] / max(1, count - 1)
         utterance_length = np.full(
@@ -269,9 +416,10 @@ def load_training_data(root: Path) -> tuple[PhoneData, WordData]:
         current_word_features = build_word_context_features(
             example.features,
             example.phone_ids,
+            canonical_phones,
             lengths,
-            normalization_mean=GOPT_NORM_MEAN,
-            normalization_std=GOPT_NORM_STD,
+            normalization_mean=CTC_XGB_NORM_MEAN,
+            normalization_std=CTC_XGB_NORM_STD,
         )
         target_word_severity = np.clip(
             1.0 - (np.asarray(row["word_labels"], dtype=np.float32) / 2.0),
@@ -323,7 +471,7 @@ def load_training_data(root: Path) -> tuple[PhoneData, WordData]:
     )
     if phones.features.shape[1] != PHONE_CONTEXT_FEATURE_DIM:
         raise AssertionError(phones.features.shape)
-    if phones.legacy_features.shape[1] != 126:
+    if phones.legacy_features.shape[1] != LEGACY_PHONE_FEATURE_DIM:
         raise AssertionError(phones.legacy_features.shape)
     if words.features.shape[1] != WORD_CONTEXT_FEATURE_DIM:
         raise AssertionError(words.features.shape)
@@ -896,14 +1044,30 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("backend/pretrained_models/arabic_pronunciation_v2"),
+        default=Path("backend/pretrained_models/arabic_pronunciation_ctc_v3"),
     )
     parser.add_argument("--seed", type=int, default=20260715)
     parser.add_argument("--minimum-red-precision", type=float, default=0.65)
     parser.add_argument("--oof-output", type=Path)
+    parser.add_argument("--feature-root", type=Path)
     args = parser.parse_args()
 
-    phones, words = load_training_data(args.data)
+    phones, words = load_training_data(
+        args.data,
+        feature_root=args.feature_root,
+    )
+    manifest_rows = [
+        json.loads(line)
+        for line in (args.data / "manifest.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    substitution_threshold, substitution_report = substitution_evaluation(
+        args.data,
+        manifest_rows,
+        feature_root=args.feature_root,
+    )
     report, models, calibration, evaluation_arrays = train_and_evaluate(
         phones,
         words,
@@ -912,13 +1076,19 @@ def main() -> None:
     )
     error_model, severe_error_model, severity_model = models
     metadata = {
-        "version": 2,
+        "version": 3,
         "purpose": "Arabic-L1 phone error likelihood, severe-error evidence, and human-label phone severity",
         "data": str(args.data),
+        "feature_root": str(
+            (args.feature_root or (args.data / "ctc_gop_output")).resolve()
+        ),
         "seed": args.seed,
-        "normalization": {"mean": GOPT_NORM_MEAN, "std": GOPT_NORM_STD},
+        "normalization": {
+            "mean": CTC_XGB_NORM_MEAN,
+            "std": CTC_XGB_NORM_STD,
+        },
         "feature_schema": {
-            "phone_error_legacy": 126,
+            "phone_error_legacy": LEGACY_PHONE_FEATURE_DIM,
             "phone_context": PHONE_CONTEXT_FEATURE_DIM,
             "word_context": WORD_CONTEXT_FEATURE_DIM,
         },
@@ -927,6 +1097,7 @@ def main() -> None:
             "green_max_error_probability": 0.15,
             "green_max_error_severity": 0.15,
             "red_min_error_severity": 0.30,
+            "substitution_confidence_threshold": substitution_threshold,
             "minimum_red_precision_target": args.minimum_red_precision,
             "phone_threshold_shrinkage": RED_PHONE_THRESHOLD_SHRINKAGE,
             "orange_means": "uncertain; articulation coaching is reserved for red phones",
@@ -937,6 +1108,7 @@ def main() -> None:
         },
         "calibration": calibration,
         "report": report,
+        "substitution_report": substitution_report,
     }
 
     args.output.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-package com.justtalk.just_talk
+package com.speakflow.app
 
 import io.flutter.embedding.android.FlutterActivity
 

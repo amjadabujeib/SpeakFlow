@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ══════════════════════════════════════════════════════
-#  ELAF Dev Stack Launcher
+#  SpeakFlow Dev Stack Launcher
 #  Starts: Python backend → ADB port forwarding →
 #          scrcpy mirroring → Flutter app
 # ══════════════════════════════════════════════════════
@@ -37,7 +37,7 @@ cleanup() {
     pkill -f "python main.py" 2>/dev/null
     pkill -f "uvicorn" 2>/dev/null
 
-    echo -e "\033[32m[Shutdown] ELAF dev environment stopped.\033[0m"
+    echo -e "\033[32m[Shutdown] SpeakFlow dev environment stopped.\033[0m"
     exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
@@ -45,7 +45,7 @@ trap cleanup SIGINT SIGTERM EXIT
 # ── Banner ─────────────────────────────────────────────
 echo ""
 echo -e "\033[1;34m╔══════════════════════════════════════════╗\033[0m"
-echo -e "\033[1;34m║       ELAF — Dev Stack Launcher          ║\033[0m"
+echo -e "\033[1;34m║     SpeakFlow — Dev Stack Launcher       ║\033[0m"
 echo -e "\033[1;34m╚══════════════════════════════════════════╝\033[0m"
 echo ""
 

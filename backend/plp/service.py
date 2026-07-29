@@ -527,6 +527,13 @@ class PlpService:
                                 "input_mode": turn.input_mode,
                                 "user_text": turn.user_text,
                                 "assistant_text": turn.assistant_text,
+                                "grammar_corrected_text": (
+                                    turn.grammar_corrected_text
+                                ),
+                                "grammar_feedback": turn.grammar_feedback,
+                                "word_confidence": copy.deepcopy(
+                                    turn.word_feedback or []
+                                ),
                                 "created_at": turn.created_at,
                             }
                             for turn in turns

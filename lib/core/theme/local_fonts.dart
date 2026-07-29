@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-/// Offline-safe replacement for the small Google Fonts surface used by ELAF.
+/// Offline-safe replacement for the small Google Fonts surface used by SpeakFlow.
 ///
 /// The matching variable font files are bundled with the application, so a
 /// fresh install never blocks rendering on fonts.gstatic.com.

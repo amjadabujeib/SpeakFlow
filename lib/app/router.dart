@@ -8,7 +8,7 @@ import '../features/home/home_tab.dart';
 import '../features/practice/practice_tab.dart';
 import '../features/chat/chat_tab.dart';
 import '../features/chat/chat_screen.dart';
-import '../features/chat/session_feedback_screen.dart';
+import '../features/chat/roleplay_session_summary_screen.dart';
 import '../features/chat/roleplay_history_screen.dart';
 import '../features/chat/roleplay_feedback_data.dart';
 import '../features/chat/roleplay_models.dart';

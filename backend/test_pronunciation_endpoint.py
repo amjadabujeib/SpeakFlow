@@ -8,7 +8,8 @@ import numpy as np
 from fastapi import HTTPException
 
 import main
-from pronunciation_service import PronunciationScoringError
+from ctc_pronunciation_service import SCORING_METHOD
+from pronunciation_core import PronunciationScoringError
 from plp.schemas import ArabicTranslationInput, RoleplayScenarioDraftInput
 from roleplay_engine import (
     apply_objective_updates,
@@ -27,23 +28,57 @@ class FakeUpload:
 
 
 class FakeScorer:
-    def __init__(self, error=None, flagged=False):
+    def __init__(self, error=None, flagged=False, acoustically_contradicted=False):
         self.error = error
         self.flagged = flagged
+        self.acoustically_contradicted = acoustically_contradicted
         self.call_count = 0
 
     def score(self, audio_path, target):
         self.call_count += 1
         if self.error:
             raise self.error
+        expected_phones = ("K", "AA", "R")
+        likely_phones = (
+            ("B", "IY", "P")
+            if self.acoustically_contradicted
+            else expected_phones
+        )
         result = {
             "target": target,
             "spoken": None,
             "target_ipa": ["k", "ˈɑ", "ɹ"],
             "analysis": [
-                {"char": "k", "arpabet": "K", "status": "correct", "score": 91, "error_probability": 3.0},
-                {"char": "ˈɑ", "arpabet": "AA1", "status": "correct", "score": 84, "error_probability": 6.0},
-                {"char": "ɹ", "arpabet": "R", "status": "incorrect" if self.flagged else "correct", "score": 48 if self.flagged else 88, "error_probability": 32.0 if self.flagged else 4.0},
+                {
+                    "char": "k",
+                    "arpabet": "K",
+                    "status": "correct",
+                    "score": 91,
+                    "error_probability": 3.0,
+                    "likely_arpabet": likely_phones[0],
+                    "likely_phone_probability": 80.0,
+                    "deletion_probability": 1.0,
+                },
+                {
+                    "char": "ˈɑ",
+                    "arpabet": "AA1",
+                    "status": "correct",
+                    "score": 84,
+                    "error_probability": 6.0,
+                    "likely_arpabet": likely_phones[1],
+                    "likely_phone_probability": 80.0,
+                    "deletion_probability": 1.0,
+                },
+                {
+                    "char": "ɹ",
+                    "arpabet": "R",
+                    "status": "incorrect" if self.flagged else "correct",
+                    "score": 48 if self.flagged else 88,
+                    "error_probability": 32.0 if self.flagged else 4.0,
+                    "likely_arpabet": likely_phones[2],
+                    "likely_phone_probability": 80.0,
+                    "deletion_probability": 1.0,
+                },
             ],
             "word_scores": [{"word": "car", "accuracy": 88}],
             "feedback": "Strong pronunciation across the aligned sounds.",
@@ -55,7 +90,7 @@ class FakeScorer:
                 "overall_score": 87,
                 "gop_score": 87,
             },
-            "scoring_method": "kaldi_gop_arabic_loso_severity_gopt_v2",
+            "scoring_method": SCORING_METHOD,
             "flagged_phones": ([{
                 "phoneme": "ɹ",
                 "arpabet": "R",
@@ -64,6 +99,7 @@ class FakeScorer:
                 "error_probability": 32.0,
             }] if self.flagged else []),
             "warnings": [],
+            "calibration": {"substitution_confidence_threshold": 20.0},
         }
         return result
 
@@ -81,6 +117,24 @@ class RoleplayApiAuthorityTests(unittest.TestCase):
 
 
 class PronunciationEndpointTests(unittest.TestCase):
+    def test_local_coaching_corrects_warning_and_labels_closest_guess(self):
+        feedback = main.local_pronunciation_coaching(
+            [
+                {
+                    "phoneme": "ʌ",
+                    "arpabet": "AH1",
+                    "status": "warning",
+                    "closest_ipa": "eɪ",
+                    "replacement_verified": False,
+                }
+            ]
+        )
+
+        self.assertIn("/ʌ/ needs attention", feedback)
+        self.assertIn("closest acoustic guess was /eɪ/", feedback)
+        self.assertNotIn("not yet verified", feedback)
+        self.assertIn("tongue and lips relaxed", feedback)
+
     def test_pronunciation_guide_uses_the_scorers_canonical_phones(self):
         guide = main.pronunciation_guide("through")
 
@@ -787,7 +841,7 @@ class PronunciationEndpointTests(unittest.TestCase):
         ):
             result = asyncio.run(main.check_pronunciation("car", FakeUpload()))
 
-        self.assertEqual(result["scoring_method"], "kaldi_gop_arabic_loso_severity_gopt_v2")
+        self.assertEqual(result["scoring_method"], SCORING_METHOD)
         self.assertEqual(result["target_ipa"], ["k", "ˈɑ", "ɹ"])
         self.assertEqual(result["scores"]["accuracy"], 88)
         self.assertEqual(result["spoken"], "car")
@@ -895,8 +949,24 @@ class PronunciationEndpointTests(unittest.TestCase):
         self.assertIn("No intelligible speech", caught.exception.detail)
         self.assertEqual(scorer.call_count, 0)
 
-    def test_rejects_unrelated_single_word_before_forced_alignment(self):
+    def test_allows_isolated_asr_mismatch_when_acoustics_support_target(self):
         scorer = FakeScorer()
+        with (
+            patch.object(main, "pronunciation_scorer", scorer),
+            patch.object(main, "whisper_model", object()),
+            patch.object(main, "_transcribe_practice_audio", return_value=("duh", 80.0, None)),
+            patch.object(main.sf, "read", return_value=(FAKE_SPEECH, 16000)),
+            patch.object(main.sf, "write"),
+            patch.object(main, "_speech_activity", return_value={"has_speech": True}),
+        ):
+            result = asyncio.run(main.check_pronunciation("tough", FakeUpload()))
+
+        self.assertEqual(scorer.call_count, 1)
+        self.assertFalse(result["asr_target_match"])
+        self.assertIn("acoustic phoneme evidence", result["warnings"][0])
+
+    def test_rejects_unrelated_single_word_after_acoustic_contradiction(self):
+        scorer = FakeScorer(acoustically_contradicted=True)
         with (
             patch.object(main, "pronunciation_scorer", scorer),
             patch.object(main, "whisper_model", object()),
@@ -908,8 +978,8 @@ class PronunciationEndpointTests(unittest.TestCase):
                 asyncio.run(main.check_pronunciation("car", FakeUpload()))
 
         self.assertEqual(caught.exception.status_code, 422)
-        self.assertIn("target word", caught.exception.detail)
-        self.assertEqual(scorer.call_count, 0)
+        self.assertIn("could not be verified", caught.exception.detail)
+        self.assertEqual(scorer.call_count, 1)
 
     def test_rejects_longer_sentence_containing_single_word_target(self):
         scorer = FakeScorer()

@@ -1,6 +1,6 @@
 // lib/shared/widgets/app_header.dart
 import 'package:flutter/material.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import '../../core/theme/app_colors.dart';
 
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -48,7 +48,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            title ?? 'JustTalk',
+            title ?? 'SpeakFlow',
             style: GoogleFonts.inter(
               fontSize: 20,
               fontWeight: FontWeight.w800,

@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -16,7 +15,11 @@ import 'package:web_socket_channel/io.dart';
 import '../../core/auth/auth_session_store.dart';
 import '../../core/services/api_service.dart';
 import '../../core/data/practice_word_store.dart';
+import 'roleplay_chat_components.dart';
+import 'roleplay_chat_message.dart';
 import 'roleplay_feedback_data.dart';
+import 'roleplay_language_help_sheet.dart';
+import 'roleplay_message_bubbles.dart';
 import 'roleplay_models.dart';
 
 const _background = Color(0xFF090E1A);
@@ -24,63 +27,11 @@ const _surface = Color(0xFF111827);
 const _card = Color(0xFF1A2235);
 const _cardInner = Color(0xFF1E2D45);
 const _primary = Color(0xFF4F7FFF);
-const _accent = Color(0xFF8B5CF6);
 const _success = Color(0xFF22C55E);
-const _warning = Color(0xFFF59E0B);
 const _error = Color(0xFFEF4444);
 const _text = Color(0xFFF1F5FF);
 const _muted = Color(0xFF8896B0);
 const _border = Color(0xFF263550);
-
-class ChatMessage {
-  final String id;
-  final bool isUser;
-  final String text;
-  final String? correctedText;
-  final String? grammarFeedback;
-  final List<Map<String, dynamic>> wordConfidence;
-  final int? fluency;
-  final int? pitchVariation;
-  final Uint8List? audio;
-  final String? localAudioPath;
-
-  const ChatMessage({
-    required this.id,
-    required this.isUser,
-    required this.text,
-    this.correctedText,
-    this.grammarFeedback,
-    this.wordConfidence = const [],
-    this.fluency,
-    this.pitchVariation,
-    this.audio,
-    this.localAudioPath,
-  });
-
-  ChatMessage copyWith({
-    String? text,
-    String? correctedText,
-    String? grammarFeedback,
-    List<Map<String, dynamic>>? wordConfidence,
-    int? fluency,
-    int? pitchVariation,
-    Uint8List? audio,
-    String? localAudioPath,
-  }) {
-    return ChatMessage(
-      id: id,
-      isUser: isUser,
-      text: text ?? this.text,
-      correctedText: correctedText ?? this.correctedText,
-      grammarFeedback: grammarFeedback ?? this.grammarFeedback,
-      wordConfidence: wordConfidence ?? this.wordConfidence,
-      fluency: fluency ?? this.fluency,
-      pitchVariation: pitchVariation ?? this.pitchVariation,
-      audio: audio ?? this.audio,
-      localAudioPath: localAudioPath ?? this.localAudioPath,
-    );
-  }
-}
 
 class ChatScreen extends StatefulWidget {
   final RoleplayScenario scenario;
@@ -97,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen>
   final ScrollController _scrollController = ScrollController();
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
-  final List<ChatMessage> _messages = [];
+  final List<RoleplayChatMessage> _messages = [];
   final Map<String, String> _recordingPaths = {};
 
   late String _clientSessionId;
@@ -148,7 +99,7 @@ class _ChatScreenState extends State<ChatScreen>
       _messages
         ..clear()
         ..add(
-          ChatMessage(
+          RoleplayChatMessage(
             id: 'opening',
             isUser: false,
             text: widget.scenario.opening,
@@ -270,19 +221,14 @@ class _ChatScreenState extends State<ChatScreen>
               .map((item) => Map<String, dynamic>.from(item))
               .toList(growable: false)
         : <Map<String, dynamic>>[];
-    final metrics = Map<String, dynamic>.from(
-      event['delivery_metrics'] as Map? ?? {},
-    );
     final userIndex = _messages.indexWhere((item) => item.id == turnId);
-    final userMessage = ChatMessage(
+    final userMessage = RoleplayChatMessage(
       id: turnId,
       isUser: true,
       text: event['user_text']?.toString() ?? '',
       correctedText: event['grammar_corrected_text']?.toString(),
       grammarFeedback: event['grammar_feedback']?.toString(),
       wordConfidence: words,
-      fluency: (metrics['fluency'] as num?)?.round(),
-      pitchVariation: (metrics['pitch_variation'] as num?)?.round(),
       localAudioPath: _recordingPaths[turnId],
     );
     final completedNow =
@@ -294,7 +240,7 @@ class _ChatScreenState extends State<ChatScreen>
         _messages.add(userMessage);
       }
       _messages.add(
-        ChatMessage(
+        RoleplayChatMessage(
           id: 'ai-$turnId',
           isUser: false,
           text: event['text']?.toString() ?? 'Could you say that again?',
@@ -343,9 +289,7 @@ class _ChatScreenState extends State<ChatScreen>
       final bytes = base64Decode(encoded);
       final index = _messages.indexWhere((item) => item.id == 'ai-$turnId');
       if (index < 0) return;
-      setState(
-        () => _messages[index] = _messages[index].copyWith(audio: bytes),
-      );
+      setState(() => _messages[index] = _messages[index].withAudio(bytes));
       if (!_recording) _player.play(BytesSource(bytes));
     } catch (_) {
       // Text remains usable if generated audio cannot be decoded or played.
@@ -360,7 +304,7 @@ class _ChatScreenState extends State<ChatScreen>
     if (text.isEmpty || !_canSubmit) return;
     final turnId = _newTurnId();
     setState(() {
-      _messages.add(ChatMessage(id: turnId, isUser: true, text: text));
+      _messages.add(RoleplayChatMessage(id: turnId, isUser: true, text: text));
       _textController.clear();
       _waiting = true;
       _pendingTurnId = turnId;
@@ -442,7 +386,7 @@ class _ChatScreenState extends State<ChatScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      builder: (_) => _LanguageHelpSheet(
+      builder: (_) => RoleplayLanguageHelpSheet(
         objectives: unfinished,
         phrases: widget.scenario.targetLanguage,
         onSelect: (value) {
@@ -556,18 +500,20 @@ class _ChatScreenState extends State<ChatScreen>
         context.go('/chat');
         return;
       }
-      final feedback = RoleplayFeedbackData.fromFinalizeJson(result);
-      await PracticeWordStore.instance.addRoleplayWords(
-        scenario: feedback.scenario,
-        candidates: feedback.recognitionChecks
-            .map(
-              (item) => PracticeWordCandidate(
-                word: item.word,
-                score: item.confidence,
-              ),
-            )
-            .toList(growable: false),
-      );
+      var feedback = RoleplayFeedbackData.fromFinalizeJson(result);
+      final practiceWordsAdded = await PracticeWordStore.instance
+          .addRoleplayWords(
+            scenario: feedback.scenario,
+            candidates: feedback.recognitionChecks
+                .map(
+                  (item) => PracticeWordCandidate(
+                    word: item.word,
+                    score: item.confidence,
+                  ),
+                )
+                .toList(growable: false),
+          );
+      feedback = feedback.withPracticeWordsAdded(practiceWordsAdded);
       if (!mounted) return;
       context.go('/chat/feedback', extra: feedback);
     } catch (error) {
@@ -623,7 +569,7 @@ class _ChatScreenState extends State<ChatScreen>
     });
   }
 
-  Future<void> _play(ChatMessage message) async {
+  Future<void> _play(RoleplayChatMessage message) async {
     try {
       if (message.audio != null) {
         await _player.play(BytesSource(message.audio!));
@@ -663,10 +609,10 @@ class _ChatScreenState extends State<ChatScreen>
         body: _starting
             ? const Center(child: CircularProgressIndicator(color: _primary))
             : _startError != null
-            ? _StartError(message: _startError!, onRetry: _retryStart)
+            ? RoleplayStartError(message: _startError!, onRetry: _retryStart)
             : Column(
                 children: [
-                  _GoalProgressCard(
+                  RoleplayGoalProgressCard(
                     scenario: widget.scenario,
                     objectiveState: _objectiveState,
                     progress: _objectiveProgress,
@@ -739,11 +685,25 @@ class _ChatScreenState extends State<ChatScreen>
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       itemCount: _messages.length + (_waiting ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _messages.length) return const _ThinkingBubble();
+        if (index == _messages.length) {
+          return const RoleplayThinkingBubble();
+        }
         final message = _messages[index];
         return message.isUser
-            ? _UserBubble(message: message, onPlay: () => _play(message))
-            : _PartnerBubble(message: message, onPlay: () => _play(message));
+            ? RoleplayUserMessageBubble(
+                text: message.text,
+                correctedText: message.correctedText,
+                grammarFeedback: message.grammarFeedback,
+                wordConfidence: message.wordConfidence,
+                hasReplay: message.localAudioPath != null,
+                onReplay: () => _play(message),
+                transcriptKey: const ValueKey('roleplay-confidence-transcript'),
+              )
+            : RoleplayPartnerMessageBubble(
+                text: message.text,
+                hasAudio: message.audio != null,
+                onPlay: () => _play(message),
+              );
       },
     );
   }
@@ -760,7 +720,7 @@ class _ChatScreenState extends State<ChatScreen>
       ),
       child: Row(
         children: [
-          _RoundAction(
+          RoleplayRoundAction(
             icon: Icons.translate_rounded,
             tooltip: 'Say it in English',
             onTap: disabled ? null : _openHelp,
@@ -768,7 +728,7 @@ class _ChatScreenState extends State<ChatScreen>
           const SizedBox(width: 9),
           Expanded(
             child: _recording
-                ? _RecordingState(animation: _recordingAnimation)
+                ? RoleplayRecordingState(animation: _recordingAnimation)
                 : TextField(
                     controller: _textController,
                     enabled: !disabled,
@@ -800,7 +760,7 @@ class _ChatScreenState extends State<ChatScreen>
                   ),
           ),
           const SizedBox(width: 9),
-          _RoundAction(
+          RoleplayRoundAction(
             icon: _recording ? Icons.stop_rounded : Icons.mic_rounded,
             tooltip: _recording ? 'Stop recording' : 'Speak',
             active: _recording,
@@ -809,781 +769,6 @@ class _ChatScreenState extends State<ChatScreen>
                 : null,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _GoalProgressCard extends StatelessWidget {
-  final RoleplayScenario scenario;
-  final Map<String, dynamic> objectiveState;
-  final int progress;
-  final bool complete;
-
-  const _GoalProgressCard({
-    required this.scenario,
-    required this.objectiveState,
-    required this.progress,
-    required this.complete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      collapsedBackgroundColor: _card,
-      backgroundColor: _card,
-      iconColor: _primary,
-      collapsedIconColor: _muted,
-      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      title: Row(
-        children: [
-          Icon(
-            complete ? Icons.verified_rounded : Icons.route_rounded,
-            color: complete ? _success : _primary,
-            size: 20,
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              complete ? 'All goals complete' : 'Your goals',
-              style: GoogleFonts.inter(
-                color: _text,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          Text(
-            '$progress%',
-            style: GoogleFonts.inter(
-              color: complete ? _success : _primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress / 100,
-            minHeight: 5,
-            color: complete ? _success : _primary,
-            backgroundColor: _border,
-          ),
-        ),
-      ),
-      children: [
-        for (final objective in scenario.objectives)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  _completed(objective.id)
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  size: 17,
-                  color: _completed(objective.id) ? _success : _muted,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    objective.label,
-                    style: GoogleFonts.inter(
-                      color: _completed(objective.id) ? _text : _muted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  bool _completed(String id) {
-    final value = objectiveState[id];
-    return value is Map && value['completed'] == true;
-  }
-}
-
-class _PartnerBubble extends StatelessWidget {
-  final ChatMessage message;
-  final VoidCallback onPlay;
-
-  const _PartnerBubble({required this.message, required this.onPlay});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * .82,
-        ),
-        margin: const EdgeInsets.only(bottom: 14, right: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Container(
-                  width: 31,
-                  height: 31,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [_primary, _accent]),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.forum_rounded,
-                    color: Colors.white,
-                    size: 17,
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: const BoxDecoration(
-                      color: _card,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(15),
-                        topRight: Radius.circular(15),
-                        bottomRight: Radius.circular(15),
-                        bottomLeft: Radius.circular(4),
-                      ),
-                    ),
-                    child: Text(
-                      message.text,
-                      style: GoogleFonts.inter(
-                        color: _text,
-                        fontSize: 14,
-                        height: 1.45,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (message.audio != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 39, top: 4),
-                child: TextButton.icon(
-                  onPressed: onPlay,
-                  icon: const Icon(Icons.volume_up_rounded, size: 15),
-                  label: const Text('Listen again'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _primary,
-                    textStyle: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _UserBubble extends StatelessWidget {
-  final ChatMessage message;
-  final VoidCallback onPlay;
-
-  const _UserBubble({required this.message, required this.onPlay});
-
-  bool get _hasCorrection {
-    final corrected = message.correctedText?.trim();
-    return corrected != null &&
-        corrected.isNotEmpty &&
-        corrected.toLowerCase() != message.text.trim().toLowerCase();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * .82,
-        ),
-        margin: const EdgeInsets.only(bottom: 14, left: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    _primary.withValues(alpha: .9),
-                    _accent.withValues(alpha: .85),
-                  ],
-                ),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(15),
-                  topRight: Radius.circular(15),
-                  bottomLeft: Radius.circular(15),
-                  bottomRight: Radius.circular(4),
-                ),
-              ),
-              child: Text(
-                message.text,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  height: 1.45,
-                ),
-              ),
-            ),
-            if (message.localAudioPath != null ||
-                message.fluency != null ||
-                _hasCorrection)
-              Wrap(
-                spacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                alignment: WrapAlignment.end,
-                children: [
-                  if (message.localAudioPath != null)
-                    TextButton.icon(
-                      onPressed: onPlay,
-                      icon: const Icon(Icons.play_arrow_rounded, size: 15),
-                      label: const Text('Replay'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: _primary,
-                        textStyle: GoogleFonts.inter(fontSize: 11),
-                      ),
-                    ),
-                  if (message.fluency != null)
-                    _MetricChip(
-                      label: 'Fluency ${message.fluency}',
-                      color: _accent,
-                    ),
-                  if (_hasCorrection)
-                    Builder(
-                      builder: (context) => TextButton.icon(
-                        onPressed: () => _showCorrection(context),
-                        icon: const Icon(
-                          Icons.tips_and_updates_rounded,
-                          size: 14,
-                        ),
-                        label: const Text('Language tip'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: _warning,
-                          textStyle: GoogleFonts.inter(fontSize: 11),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showCorrection(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: _surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'A clearer way to say it',
-                style: GoogleFonts.inter(
-                  color: _text,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 13),
-              Text(
-                message.correctedText!,
-                style: GoogleFonts.inter(
-                  color: _success,
-                  fontSize: 15,
-                  height: 1.45,
-                ),
-              ),
-              if (message.grammarFeedback?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: 10),
-                Text(
-                  message.grammarFeedback!,
-                  style: GoogleFonts.inter(
-                    color: _muted,
-                    fontSize: 12,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _MetricChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _ThinkingBubble extends StatelessWidget {
-  const _ThinkingBubble();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14, right: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(
-          'Responding…',
-          style: GoogleFonts.inter(color: _muted, fontSize: 12),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundAction extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final bool active;
-
-  const _RoundAction({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.active = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onTap,
-      style: IconButton.styleFrom(
-        backgroundColor: active ? _error : _cardInner,
-        foregroundColor: onTap == null ? _muted : Colors.white,
-        fixedSize: const Size(46, 46),
-      ),
-      icon: Icon(icon),
-    );
-  }
-}
-
-class _RecordingState extends StatelessWidget {
-  final Animation<double> animation;
-
-  const _RecordingState({required this.animation});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      decoration: BoxDecoration(
-        color: _error.withValues(alpha: .1),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: _error.withValues(alpha: .35)),
-      ),
-      child: Row(
-        children: [
-          FadeTransition(
-            opacity: animation,
-            child: const Icon(Icons.circle, color: _error, size: 10),
-          ),
-          const SizedBox(width: 9),
-          Text(
-            'Recording your turn…',
-            style: GoogleFonts.inter(
-              color: _text,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LanguageHelpSheet extends StatefulWidget {
-  final List<RoleplayObjective> objectives;
-  final List<String> phrases;
-  final ValueChanged<String> onSelect;
-
-  const _LanguageHelpSheet({
-    required this.objectives,
-    required this.phrases,
-    required this.onSelect,
-  });
-
-  @override
-  State<_LanguageHelpSheet> createState() => _LanguageHelpSheetState();
-}
-
-class _LanguageHelpSheetState extends State<_LanguageHelpSheet> {
-  final TextEditingController _arabicController = TextEditingController();
-  List<RoleplayEscapeOption> _options = const [];
-  bool _loading = false;
-  String? _errorMessage;
-
-  Future<void> _generateOptions() async {
-    final source = _arabicController.text.trim();
-    if (source.isEmpty || _loading) return;
-    FocusScope.of(context).unfocus();
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-      _options = const [];
-    });
-    try {
-      final result = await ApiService.getArabicTranslationOptions(
-        arabicText: source,
-      );
-      final rawOptions = result['options'];
-      if (rawOptions is! List) {
-        throw const FormatException('Missing English options');
-      }
-      final options = rawOptions
-          .whereType<Map>()
-          .map(
-            (item) =>
-                RoleplayEscapeOption.fromJson(Map<String, dynamic>.from(item)),
-          )
-          .where((item) => item.text.isNotEmpty)
-          .toList(growable: false);
-      if (options.length != 3) {
-        throw const FormatException('Expected three English options');
-      }
-      if (mounted) setState(() => _options = options);
-    } catch (error) {
-      if (mounted) {
-        final detail = error.toString().toLowerCase();
-        final serviceUnavailable =
-            detail.contains('connection refused') ||
-            detail.contains('failed host lookup') ||
-            detail.contains('clientexception') ||
-            detail.contains('socketexception') ||
-            detail.contains('timed out');
-        setState(
-          () => _errorMessage = serviceUnavailable
-              ? 'The learning service is offline. Reconnect the backend, then try again.'
-              : 'I could not create the English options. Please try again.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _arabicController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * .82,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: _muted.withValues(alpha: .4),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Say what you mean',
-                  style: GoogleFonts.inter(
-                    color: _text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  widget.objectives.isEmpty
-                      ? 'All goals complete. Keep chatting freely, or end whenever you’re ready.'
-                      : 'Next goal: ${widget.objectives.first.label}',
-                  style: GoogleFonts.inter(
-                    color: _muted,
-                    fontSize: 12,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _arabicController,
-                  minLines: 2,
-                  maxLines: 4,
-                  textDirection: TextDirection.rtl,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _generateOptions(),
-                  style: GoogleFonts.inter(color: _text, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'اكتب ما تريد قوله بالعربية',
-                    hintTextDirection: TextDirection.rtl,
-                    hintStyle: GoogleFonts.inter(color: _muted),
-                    filled: true,
-                    fillColor: _card,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: _border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: _border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: _primary),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _loading ? null : _generateOptions,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: _primary.withValues(alpha: .45),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                    ),
-                    icon: _loading
-                        ? const SizedBox.square(
-                            dimension: 17,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.translate_rounded, size: 19),
-                    label: Text(
-                      _loading ? 'Creating options…' : 'Show me 3 ways',
-                    ),
-                  ),
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    _errorMessage!,
-                    style: GoogleFonts.inter(color: _error, fontSize: 12),
-                  ),
-                ],
-                if (_options.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  for (final option in _options)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 9),
-                      child: Material(
-                        color: _card,
-                        borderRadius: BorderRadius.circular(14),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () {
-                            widget.onSelect(option.text);
-                            Navigator.pop(context);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _primary.withValues(alpha: .14),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    option.label,
-                                    style: GoogleFonts.inter(
-                                      color: _primary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    option.text,
-                                    style: GoogleFonts.inter(
-                                      color: _text,
-                                      fontSize: 13,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.north_west_rounded,
-                                  color: _muted,
-                                  size: 17,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-                if (widget.phrases.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Or use a sentence starter',
-                    style: GoogleFonts.inter(
-                      color: _muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  for (final phrase in widget.phrases)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.arrow_forward_rounded,
-                        color: _primary,
-                        size: 18,
-                      ),
-                      title: Text(
-                        phrase,
-                        style: GoogleFonts.inter(color: _text, fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        'Tap to use as a sentence starter',
-                        style: GoogleFonts.inter(color: _muted, fontSize: 10),
-                      ),
-                      onTap: () {
-                        widget.onSelect('$phrase ');
-                        Navigator.pop(context);
-                      },
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StartError extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _StartError({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_rounded, color: _muted, size: 42),
-            const SizedBox(height: 14),
-            Text(
-              'Could not start the roleplay',
-              style: GoogleFonts.inter(
-                color: _text,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: _muted, fontSize: 12),
-            ),
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: onRetry,
-              style: FilledButton.styleFrom(backgroundColor: _primary),
-              child: const Text('Try again'),
-            ),
-          ],
-        ),
       ),
     );
   }

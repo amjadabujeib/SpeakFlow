@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_talk/core/data/practice_word_store.dart';
+import 'package:speakflow/core/data/practice_word_store.dart';
 
 void main() {
   test('a manual word can be promoted to a scored roleplay word', () {
@@ -45,5 +45,26 @@ void main() {
     expect(restored.addedAt, original.addedAt);
     expect(restored.occurrences, original.occurrences);
     expect(restored.addedManually, isFalse);
+  });
+
+  test('mastered state survives persistence and can be reactivated', () {
+    final masteredAt = DateTime.utc(2026, 7, 29, 12);
+    final mastered = PracticeWord(
+      word: 'tough',
+      ipa: '/tʌf/',
+      score: 72,
+      source: 'Added by you',
+      addedAt: DateTime.utc(2026, 7, 28),
+      masteredAt: masteredAt,
+      occurrences: 1,
+      addedManually: true,
+    );
+
+    final restored = PracticeWord.fromJson(mastered.toJson());
+    final reactivated = restored.copyWith(masteredAt: null);
+
+    expect(restored.isMastered, isTrue);
+    expect(restored.masteredAt, masteredAt);
+    expect(reactivated.isMastered, isFalse);
   });
 }

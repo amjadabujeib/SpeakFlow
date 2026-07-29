@@ -158,6 +158,9 @@ class RoleplayTranscriptTurn {
   final String inputMode;
   final String userText;
   final String assistantText;
+  final String? correctedText;
+  final String? grammarFeedback;
+  final List<Map<String, dynamic>> wordConfidence;
   final DateTime? createdAt;
 
   const RoleplayTranscriptTurn({
@@ -166,16 +169,28 @@ class RoleplayTranscriptTurn {
     required this.inputMode,
     required this.userText,
     required this.assistantText,
+    required this.correctedText,
+    required this.grammarFeedback,
+    required this.wordConfidence,
     required this.createdAt,
   });
 
   factory RoleplayTranscriptTurn.fromJson(Map<String, dynamic> json) {
+    final rawWords = json['word_confidence'];
     return RoleplayTranscriptTurn(
       turnId: json['turn_id']?.toString() ?? '',
       sequence: (json['sequence'] as num?)?.round() ?? 0,
       inputMode: json['input_mode']?.toString() ?? 'text',
       userText: json['user_text']?.toString() ?? '',
       assistantText: json['assistant_text']?.toString() ?? '',
+      correctedText: json['grammar_corrected_text']?.toString(),
+      grammarFeedback: json['grammar_feedback']?.toString(),
+      wordConfidence: rawWords is List
+          ? rawWords
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList(growable: false)
+          : const [],
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
     );
   }

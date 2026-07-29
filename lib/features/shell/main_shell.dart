@@ -1,7 +1,7 @@
 // lib/features/shell/main_shell.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_talk/core/theme/local_fonts.dart';
+import 'package:speakflow/core/theme/local_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/providers/app_state.dart';
 import '../../shared/widgets/settings_drawer.dart';

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_talk/core/theme/app_theme.dart';
-import 'package:just_talk/features/practice/pronunciation_screen.dart';
-import 'package:just_talk/shared/widgets/dictionary_popup.dart';
+import 'package:speakflow/core/theme/app_theme.dart';
+import 'package:speakflow/features/practice/pronunciation_screen.dart';
+import 'package:speakflow/shared/widgets/dictionary_popup.dart';
 
 void main() {
   test('practice pass requires both accuracy and completeness thresholds', () {

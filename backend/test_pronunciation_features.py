@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from pronunciation_features import (
+    GOP_FEATURE_DIM,
     PHONE_CONTEXT_FEATURE_DIM,
     WORD_CONTEXT_FEATURE_DIM,
     build_phone_context_features,
@@ -12,7 +13,11 @@ from pronunciation_features import (
 
 class PronunciationFeatureTests(unittest.TestCase):
     def setUp(self):
-        self.raw = np.arange(5 * 84, dtype=np.float32).reshape(5, 84) / 100.0
+        self.raw = (
+            np.arange(5 * GOP_FEATURE_DIM, dtype=np.float32)
+            .reshape(5, GOP_FEATURE_DIM)
+            / 100.0
+        )
         self.phone_ids = np.asarray([2, 22, 9, 0, 4], dtype=np.int64)
         self.phones = ("K", "AA1", "R", "W", "L")
         self.word_lengths = (3, 2)
@@ -34,6 +39,7 @@ class PronunciationFeatureTests(unittest.TestCase):
         features = build_word_context_features(
             self.raw,
             self.phone_ids,
+            self.phones,
             self.word_lengths,
             normalization_mean=3.203,
             normalization_std=4.045,
@@ -53,6 +59,18 @@ class PronunciationFeatureTests(unittest.TestCase):
                 normalization_std=4.045,
             )
 
+    def test_feature_wise_normalization_is_supported(self):
+        features = build_phone_context_features(
+            self.raw,
+            self.phone_ids,
+            self.phones,
+            self.word_lengths,
+            normalization_mean=np.zeros(GOP_FEATURE_DIM, dtype=np.float32),
+            normalization_std=np.ones(GOP_FEATURE_DIM, dtype=np.float32),
+        )
+
+        np.testing.assert_allclose(features[:, :GOP_FEATURE_DIM], self.raw)
+
     def test_non_finite_gop_is_rejected(self):
         raw = self.raw.copy()
         raw[0, 0] = np.nan
@@ -61,6 +79,7 @@ class PronunciationFeatureTests(unittest.TestCase):
             build_word_context_features(
                 raw,
                 self.phone_ids,
+                self.phones,
                 self.word_lengths,
                 normalization_mean=3.203,
                 normalization_std=4.045,

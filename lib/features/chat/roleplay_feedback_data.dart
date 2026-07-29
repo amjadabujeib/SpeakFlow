@@ -53,6 +53,7 @@ class RoleplayFeedbackData {
   final Map<String, dynamic> evidence;
   final List<RoleplayRecognitionCheck> recognitionChecks;
   final List<RoleplayCorrection> corrections;
+  final int practiceWordsAdded;
   final bool historySaved;
 
   const RoleplayFeedbackData({
@@ -67,8 +68,27 @@ class RoleplayFeedbackData {
     required this.evidence,
     required this.recognitionChecks,
     required this.corrections,
+    this.practiceWordsAdded = 0,
     this.historySaved = true,
   });
+
+  RoleplayFeedbackData withPracticeWordsAdded(int count) {
+    return RoleplayFeedbackData(
+      scenario: scenario,
+      icon: icon,
+      messageCount: messageCount,
+      durationSeconds: durationSeconds,
+      eligible: eligible,
+      objectiveCompleted: objectiveCompleted,
+      evidenceNote: evidenceNote,
+      scores: scores,
+      evidence: evidence,
+      recognitionChecks: recognitionChecks,
+      corrections: corrections,
+      practiceWordsAdded: count < 0 ? 0 : count,
+      historySaved: historySaved,
+    );
+  }
 
   List<Map<String, dynamic>> get scenarioEvidence {
     final raw = evidence['scenario_evidence'];
@@ -154,6 +174,7 @@ class RoleplayFeedbackData {
     evidence: {},
     recognitionChecks: [],
     corrections: [],
+    practiceWordsAdded: 0,
     historySaved: false,
   );
 }

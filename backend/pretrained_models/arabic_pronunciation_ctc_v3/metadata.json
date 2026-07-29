@@ -1,0 +1,509 @@
+{
+  "calibration": {
+    "error": {
+      "intercept": -0.24419053082872652,
+      "slope": 0.8380381085905477
+    },
+    "global_red_severe_probability": 1.0,
+    "phone_severity": {
+      "intercept": -0.001975635312671656,
+      "slope": 0.48625742524624405
+    },
+    "phone_word_blend_phone_weight": 1.0,
+    "quality_severity_regressor_weight": 0.5,
+    "red_severe_probability_by_phone_id": {
+      "10": 0.6290450509979967,
+      "14": 0.47813844199119604,
+      "18": 0.47753592723263427,
+      "21": 0.60904182472661,
+      "23": 0.6414398923539619,
+      "28": 0.5326927488877291,
+      "33": 0.5630697080666598,
+      "8": 0.48559917405575737
+    },
+    "severe_error": {
+      "intercept": -1.1271226085220856,
+      "slope": 0.7701989422860397
+    },
+    "word_severity": {
+      "intercept": 0.030909734957915942,
+      "slope": 0.5103154724084941
+    }
+  },
+  "data": "/home/amjad/english_learning_app_data/l2_arctic_arabic_ctc",
+  "deployment": {
+    "reason": "speaker-held-out blending selected aggregated phone evidence; the insertion-aware word candidate did not improve validation",
+    "word_model_used": false
+  },
+  "feature_root": "/home/amjad/english_learning_app_data/l2_arctic_arabic_ctc/ctc_gop_output",
+  "feature_schema": {
+    "phone_context": 400,
+    "phone_error_legacy": 131,
+    "word_context": 567
+  },
+  "normalization": {
+    "mean": 0.0,
+    "std": 1.0
+  },
+  "phone_to_id": {
+    "AA": 21,
+    "AE": 28,
+    "AH": 16,
+    "AO": 3,
+    "AW": 31,
+    "AY": 14,
+    "B": 7,
+    "CH": 36,
+    "D": 29,
+    "DH": 32,
+    "EH": 8,
+    "ER": 33,
+    "EY": 26,
+    "F": 13,
+    "G": 20,
+    "HH": 25,
+    "IH": 5,
+    "IY": 1,
+    "JH": 35,
+    "K": 2,
+    "L": 4,
+    "M": 22,
+    "N": 17,
+    "NG": 24,
+    "OW": 11,
+    "OY": 37,
+    "P": 23,
+    "R": 9,
+    "S": 19,
+    "SH": 27,
+    "T": 6,
+    "TH": 12,
+    "UH": 30,
+    "UW": 18,
+    "V": 15,
+    "W": 0,
+    "Y": 34,
+    "Z": 10,
+    "ZH": 38
+  },
+  "purpose": "Arabic-L1 phone error likelihood, severe-error evidence, and human-label phone severity",
+  "report": {
+    "by_speaker": {
+      "ABA": {
+        "phone_error_at_15_percent": {
+          "actual_positive": 838,
+          "average_precision": 0.38116699356867695,
+          "brier": 0.06722068167134983,
+          "f1": 0.3838051349572087,
+          "precision": 0.265,
+          "predicted_positive": 2200,
+          "recall": 0.6957040572792362,
+          "roc_auc": 0.8188407294239408
+        },
+        "phone_severity": {
+          "mae": 0.14228567418226318,
+          "mean_prediction": 0.10107603149566423,
+          "mean_truth": 0.08036848902702332,
+          "pcc": 0.36526474305598305
+        },
+        "phone_severity_regressor_only": {
+          "mae": 0.14387753075216117,
+          "mean_prediction": 0.0980722280652672,
+          "mean_truth": 0.08036848902702332,
+          "pcc": 0.316091724747681
+        },
+        "status": {
+          "red": {
+            "f1": 0.017467248908296942,
+            "precision": 0.8571428571428571,
+            "predicted": 7,
+            "recall": 0.008823529411764706
+          },
+          "warning_or_red": {
+            "f1": 0.3664764193451487,
+            "precision": 0.2448815736651947,
+            "predicted": 2491,
+            "recall": 0.7279236276849642
+          }
+        },
+        "utterance_severity_clean": {
+          "mae": 0.03596802410586705,
+          "mean_prediction": 0.09626012342416905,
+          "mean_truth": 0.09530890674955428,
+          "pcc": 0.5241956926774103
+        },
+        "word_severity": {
+          "mae": 0.11036631634719153,
+          "mean_prediction": 0.0988009586103178,
+          "mean_truth": 0.08134926110506058,
+          "pcc": 0.33348325265305023
+        }
+      },
+      "SKA": {
+        "phone_error_at_15_percent": {
+          "actual_positive": 1210,
+          "average_precision": 0.44845750822341934,
+          "brier": 0.09068319739391367,
+          "f1": 0.480719794344473,
+          "precision": 0.3932702418506835,
+          "predicted_positive": 1902,
+          "recall": 0.6181818181818182,
+          "roc_auc": 0.850550634426622
+        },
+        "phone_severity": {
+          "mae": 0.15999565544067318,
+          "mean_prediction": 0.09468203036701017,
+          "mean_truth": 0.11553743481636047,
+          "pcc": 0.44500081283007387
+        },
+        "phone_severity_regressor_only": {
+          "mae": 0.16009064055416808,
+          "mean_prediction": 0.08998974669648999,
+          "mean_truth": 0.11553743481636047,
+          "pcc": 0.4375901306673409
+        },
+        "status": {
+          "red": {
+            "f1": 0.003992015968063872,
+            "precision": 1.0,
+            "predicted": 2,
+            "recall": 0.002
+          },
+          "warning_or_red": {
+            "f1": 0.4855525767053917,
+            "precision": 0.3795994410805775,
+            "predicted": 2147,
+            "recall": 0.6735537190082644
+          }
+        },
+        "utterance_severity_clean": {
+          "mae": 0.060376991826585784,
+          "mean_prediction": 0.09254325553823463,
+          "mean_truth": 0.13428163888300357,
+          "pcc": 0.37648578317696707
+        },
+        "word_severity": {
+          "mae": 0.12438949471648231,
+          "mean_prediction": 0.09148363383761308,
+          "mean_truth": 0.11866304278373718,
+          "pcc": 0.4138076814372744
+        }
+      },
+      "YBAA": {
+        "phone_error_at_15_percent": {
+          "actual_positive": 698,
+          "average_precision": 0.34933258710409887,
+          "brier": 0.05801258482188782,
+          "f1": 0.3423180592991914,
+          "precision": 0.22378854625550662,
+          "predicted_positive": 2270,
+          "recall": 0.7277936962750716,
+          "roc_auc": 0.848664265136238
+        },
+        "phone_severity": {
+          "mae": 0.13371752561141162,
+          "mean_prediction": 0.10853607235498121,
+          "mean_truth": 0.062211014330387115,
+          "pcc": 0.35080245206791955
+        },
+        "phone_severity_regressor_only": {
+          "mae": 0.1347853723460168,
+          "mean_prediction": 0.10592016236371317,
+          "mean_truth": 0.062211014330387115,
+          "pcc": 0.32766478694194406
+        },
+        "status": {
+          "red": {
+            "f1": 0.012121212121212121,
+            "precision": 0.3333333333333333,
+            "predicted": 9,
+            "recall": 0.006172839506172839
+          },
+          "warning_or_red": {
+            "f1": 0.3276073619631902,
+            "precision": 0.20843091334894615,
+            "predicted": 2562,
+            "recall": 0.7650429799426934
+          }
+        },
+        "utterance_severity_clean": {
+          "mae": 0.050328513312536814,
+          "mean_prediction": 0.10235864258957612,
+          "mean_truth": 0.06753403585633799,
+          "pcc": 0.30734361788714004
+        },
+        "word_severity": {
+          "mae": 0.10694271838038101,
+          "mean_prediction": 0.10516692663611414,
+          "mean_truth": 0.06292011588811874,
+          "pcc": 0.365070714267232
+        }
+      },
+      "ZHAA": {
+        "phone_error_at_15_percent": {
+          "actual_positive": 966,
+          "average_precision": 0.22997990529997883,
+          "brier": 0.08949343594777429,
+          "f1": 0.2881152460984393,
+          "precision": 0.23483365949119372,
+          "predicted_positive": 1533,
+          "recall": 0.37267080745341613,
+          "roc_auc": 0.7168365531653493
+        },
+        "phone_severity": {
+          "mae": 0.14056564862763593,
+          "mean_prediction": 0.07220055892915397,
+          "mean_truth": 0.0992647036910057,
+          "pcc": 0.259628130235925
+        },
+        "phone_severity_regressor_only": {
+          "mae": 0.1393414587345295,
+          "mean_prediction": 0.06900851125586226,
+          "mean_truth": 0.0992647036910057,
+          "pcc": 0.27710324985029117
+        },
+        "status": {
+          "red": {
+            "f1": 0.017167381974248927,
+            "precision": 1.0,
+            "predicted": 8,
+            "recall": 0.008658008658008658
+          },
+          "warning_or_red": {
+            "f1": 0.2933837429111531,
+            "precision": 0.23108993448481238,
+            "predicted": 1679,
+            "recall": 0.40165631469979296
+          }
+        },
+        "utterance_severity_clean": {
+          "mae": 0.05472707678943574,
+          "mean_prediction": 0.0615568551894636,
+          "mean_truth": 0.10701497642285361,
+          "pcc": 0.45841010891678335
+        },
+        "word_severity": {
+          "mae": 0.11598853157397847,
+          "mean_prediction": 0.06616239145920894,
+          "mean_truth": 0.10547568649053574,
+          "pcc": 0.22639776613252358
+        }
+      }
+    },
+    "clean_red_nested_by_precision_target": {
+      "0.65": {
+        "any_error": {
+          "f1": 0.04533745492014425,
+          "precision": 0.5176470588235295,
+          "predicted": 85,
+          "recall": 0.023706896551724137
+        },
+        "severe_error": {
+          "f1": 0.05276073619631902,
+          "precision": 0.5058823529411764,
+          "predicted": 85,
+          "recall": 0.027831715210355986
+        }
+      },
+      "0.75": {
+        "any_error": {
+          "f1": 0.007494646680942185,
+          "precision": 0.5833333333333334,
+          "predicted": 12,
+          "recall": 0.003771551724137931
+        },
+        "severe_error": {
+          "f1": 0.008991650610147721,
+          "precision": 0.5833333333333334,
+          "predicted": 12,
+          "recall": 0.004530744336569579
+        }
+      },
+      "0.80": {
+        "any_error": {
+          "f1": 0.007502679528403002,
+          "precision": 0.7,
+          "predicted": 10,
+          "recall": 0.003771551724137931
+        },
+        "severe_error": {
+          "f1": 0.009003215434083603,
+          "precision": 0.7,
+          "predicted": 10,
+          "recall": 0.004530744336569579
+        }
+      },
+      "0.85": {
+        "any_error": {
+          "f1": 0.0032258064516129032,
+          "precision": 0.75,
+          "predicted": 4,
+          "recall": 0.0016163793103448276
+        },
+        "severe_error": {
+          "f1": 0.003873466752743706,
+          "precision": 0.75,
+          "predicted": 4,
+          "recall": 0.001941747572815534
+        }
+      }
+    },
+    "clean_red_nested_threshold_evaluation": {
+      "f1": 0.05276073619631902,
+      "precision": 0.5058823529411764,
+      "predicted": 85,
+      "recall": 0.027831715210355986
+    },
+    "clean_status": {
+      "red": {
+        "f1": 0.014102564102564103,
+        "precision": 0.7333333333333333,
+        "predicted": 15,
+        "recall": 0.007119741100323625
+      },
+      "warning_or_red": {
+        "f1": 0.38922558922558925,
+        "precision": 0.28305582761998044,
+        "predicted": 4084,
+        "recall": 0.6228448275862069
+      }
+    },
+    "clean_utterance_severity": {
+      "mae": 0.05037473131338247,
+      "mean_prediction": 0.08814173398460484,
+      "mean_truth": 0.10110182947170866,
+      "pcc": 0.2351196974113116
+    },
+    "clean_word_severity": {
+      "mae": 0.11106905056569571,
+      "mean_prediction": 0.08456532178931048,
+      "mean_truth": 0.09220512956380844,
+      "pcc": 0.31604729367472073
+    },
+    "context_error_classifier_candidate": {
+      "phone_error_at_15_percent": {
+        "actual_positive": 3712,
+        "average_precision": 0.31478811441329213,
+        "brier": 0.07651521380877345,
+        "f1": 0.382147124082608,
+        "precision": 0.2796652510617037,
+        "predicted_positive": 8006,
+        "recall": 0.6031788793103449,
+        "roc_auc": 0.7865235285229523
+      },
+      "phone_error_ranking": {
+        "average_precision": 0.3380846337395292,
+        "roc_auc": 0.8025221620487271
+      },
+      "zhaa": {
+        "actual_positive": 966,
+        "average_precision": 0.23284489416377235,
+        "brier": 0.08947818959101729,
+        "f1": 0.300658978583196,
+        "precision": 0.2496580027359781,
+        "predicted_positive": 1462,
+        "recall": 0.3778467908902691,
+        "roc_auc": 0.716704158358711
+      }
+    },
+    "evaluation": "leave-one-Arabic-speaker-out; calibration also cross-fitted by speaker",
+    "phone_error_at_15_percent": {
+      "actual_positive": 3712,
+      "average_precision": 0.32011171012575246,
+      "brier": 0.07638921998127204,
+      "f1": 0.3785831109580787,
+      "precision": 0.27817836812144214,
+      "predicted_positive": 7905,
+      "recall": 0.5924030172413793,
+      "roc_auc": 0.7823314272185496
+    },
+    "phone_error_prevalence": 0.09757123330880034,
+    "phone_error_ranking": {
+      "average_precision": 0.3428678382943653,
+      "roc_auc": 0.7984406497080233
+    },
+    "phone_severity": {
+      "mae": 0.1441642651736195,
+      "mean_prediction": 0.09410891508281688,
+      "mean_truth": 0.08939649164676666,
+      "pcc": 0.3360059870863338
+    },
+    "phone_severity_regressor_only": {
+      "mae": 0.1445440694217456,
+      "mean_prediction": 0.09073055807650396,
+      "mean_truth": 0.08939649164676666,
+      "pcc": 0.32011953443153485
+    },
+    "phones": 38044,
+    "severe_error_ranking": {
+      "average_precision": 0.279469150406331,
+      "roc_auc": 0.7790308316450303
+    },
+    "speakers": [
+      "ABA",
+      "SKA",
+      "YBAA",
+      "ZHAA"
+    ],
+    "word_blend_phone_weight": 1.0,
+    "word_severity": {
+      "mae": 0.1144510268681157,
+      "mean_prediction": 0.09034485993403096,
+      "mean_truth": 0.09220513701438904,
+      "pcc": 0.29381186859411657
+    },
+    "word_severity_model_only": {
+      "mae": 0.11978901055828896,
+      "mean_prediction": 0.09153181818392207,
+      "mean_truth": 0.09220513701438904,
+      "pcc": 0.2295515554669513
+    },
+    "words": 10994
+  },
+  "seed": 20260715,
+  "status_policy": {
+    "green_max_error_probability": 0.15,
+    "green_max_error_severity": 0.15,
+    "minimum_red_precision_target": 0.65,
+    "orange_means": "uncertain; articulation coaching is reserved for red phones",
+    "phone_threshold_shrinkage": 0.75,
+    "red_min_error_severity": 0.3,
+    "substitution_confidence_threshold": 1.0
+  },
+  "substitution_report": {
+    "final_threshold": 1.0,
+    "held_out_by_speaker": {
+      "ABA": {
+        "exact_match_recall": 0.0,
+        "exact_matches": 0,
+        "precision": 0.0,
+        "predicted": 0,
+        "threshold": 1.0
+      },
+      "SKA": {
+        "exact_match_recall": 0.0,
+        "exact_matches": 0,
+        "precision": 0.0,
+        "predicted": 0,
+        "threshold": 1.0
+      },
+      "YBAA": {
+        "exact_match_recall": 0.0,
+        "exact_matches": 0,
+        "precision": 0.0,
+        "predicted": 0,
+        "threshold": 1.0
+      },
+      "ZHAA": {
+        "exact_match_recall": 0.0,
+        "exact_matches": 0,
+        "precision": 0.0,
+        "predicted": 0,
+        "threshold": 1.0
+      }
+    },
+    "minimum_precision_target": 0.6,
+    "minimum_predictions": 20
+  },
+  "version": 3
+}

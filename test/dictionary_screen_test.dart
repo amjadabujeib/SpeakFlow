@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_talk/core/theme/app_theme.dart';
-import 'package:just_talk/features/home/dictionary_screen.dart';
+import 'package:speakflow/core/theme/app_theme.dart';
+import 'package:speakflow/features/home/dictionary_screen.dart';
 
 void main() {
   testWidgets('dictionary shows learner translation, meaning, and examples', (

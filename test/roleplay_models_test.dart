@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_talk/features/chat/roleplay_feedback_data.dart';
-import 'package:just_talk/features/chat/roleplay_models.dart';
+import 'package:speakflow/features/chat/roleplay_feedback_data.dart';
+import 'package:speakflow/features/chat/roleplay_models.dart';
 
 void main() {
   test('roleplay scenario parses the server contract', () {
@@ -92,6 +92,8 @@ void main() {
     expect(feedback.recognitionChecks.single.word, 'reservation');
     expect(feedback.scenarioEvidence.single['score'], 87);
     expect(feedback.corrections.single.corrected, 'I have a reservation.');
+    expect(feedback.practiceWordsAdded, 0);
+    expect(feedback.withPracticeWordsAdded(2).practiceWordsAdded, 2);
   });
 
   test('short session keeps independent provisional category scores', () {
@@ -152,6 +154,13 @@ void main() {
           'input_mode': 'audio',
           'user_text': 'Here it is.',
           'assistant_text': 'Thank you.',
+          'grammar_corrected_text': 'Here it is.',
+          'grammar_feedback': 'Correct',
+          'word_confidence': [
+            {'word': 'Here', 'score': .91},
+            {'word': 'it', 'score': .82},
+            {'word': 'is', 'score': .74},
+          ],
           'created_at': '2026-07-26T07:00:05Z',
         },
       ],
@@ -161,5 +170,9 @@ void main() {
     expect(transcript.scenario.opening, 'Where are you flying today?');
     expect(transcript.turns.map((item) => item.sequence), [1, 2]);
     expect(transcript.turns.last.inputMode, 'audio');
+    expect(transcript.turns.last.correctedText, 'Here it is.');
+    expect(transcript.turns.last.grammarFeedback, 'Correct');
+    expect(transcript.turns.last.wordConfidence.length, 3);
+    expect(transcript.turns.last.wordConfidence.last['score'], .74);
   });
 }

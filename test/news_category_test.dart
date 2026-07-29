@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_talk/features/news/news_tab.dart';
+import 'package:speakflow/features/news/news_tab.dart';
 
 void main() {
   testWidgets('news category selection and refresh request the selected feed', (

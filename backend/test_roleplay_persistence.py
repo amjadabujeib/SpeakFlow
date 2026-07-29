@@ -48,11 +48,23 @@ class RoleplayPersistenceTests(unittest.TestCase):
         self.assertEqual(started.status, "active")
         turn = RoleplayTurnInput(
             turn_id="turn-integrity-0001",
-            input_mode="text",
-            user_text="I am flying to Paris today.",
+            input_mode="audio",
+            user_text="I flying to Paris today.",
             assistant_text="May I see your passport?",
-            grammar_error_units=0,
-            word_count=6,
+            grammar_corrected_text="I am flying to Paris today.",
+            grammar_feedback=(
+                'Add “am” after “I” to form the present continuous. '
+                "Corrected: I am flying to Paris today."
+            ),
+            grammar_error_units=1,
+            word_count=5,
+            word_feedback=[
+                {"word": "I", "score": 0.96, "start": 0.0, "end": 0.1},
+                {"word": "flying", "score": 0.48, "start": 0.2, "end": 0.6},
+                {"word": "to", "score": 0.91, "start": 0.7, "end": 0.8},
+                {"word": "Paris", "score": 0.86, "start": 0.9, "end": 1.2},
+                {"word": "today", "score": 0.73, "start": 1.3, "end": 1.6},
+            ],
             objective_evidence=[
                 {
                     "objective_id": "destination",
@@ -108,11 +120,21 @@ class RoleplayPersistenceTests(unittest.TestCase):
         self.assertEqual(transcript.turns[0].sequence, 1)
         self.assertEqual(
             transcript.turns[0].user_text,
-            "I am flying to Paris today.",
+            "I flying to Paris today.",
         )
         self.assertEqual(
             transcript.turns[0].assistant_text,
             "May I see your passport?",
+        )
+        self.assertEqual(
+            transcript.turns[0].grammar_corrected_text,
+            "I am flying to Paris today.",
+        )
+        self.assertIn("present continuous", transcript.turns[0].grammar_feedback)
+        self.assertEqual(len(transcript.turns[0].word_confidence), 5)
+        self.assertEqual(
+            transcript.turns[0].word_confidence[1]["score"],
+            0.48,
         )
         with session_scope() as session:
             row = session.scalar(
