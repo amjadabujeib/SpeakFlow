@@ -1,0 +1,44 @@
+name: speakflow
+description: "SpeakFlow - AI Language Learning App"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.6.3
+  flutter_animate: ^4.5.2
+  http: ^1.2.2
+  web_socket_channel: ^3.0.2
+  audioplayers: ^6.7.1
+  record: ^6.2.1
+  permission_handler: ^12.0.3
+  path_provider: ^2.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/mock/plp_plan_v1.json
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+        - asset: assets/fonts/Inter-Italic.ttf
+          style: italic
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit.ttf
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo.ttf
+    - family: Source Code Pro
+      fonts:
+        - asset: assets/fonts/SourceCodePro.ttf

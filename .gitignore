@@ -1,5 +1,8 @@
 # Miscellaneous
 .env
+/development-guidelines.md
+/start_dev.sh
+/.local_data/
 *.class
 *.log
 *.pyc
@@ -31,8 +34,8 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
-/coverage/
+/frontend/build/
+/frontend/coverage/
 
 # Downloaded pronunciation acoustic checkpoint (1.26 GB).
 /backend/pretrained_models/wav2vec2_xlsr53_cmu39_ctc/
@@ -44,6 +47,10 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+/frontend/android/app/debug
+/frontend/android/app/profile
+/frontend/android/app/release
+
+# Runtime ML model weights are installed locally and are not source files.
+/backend/.models/
+/backend/training/

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -49,3 +50,14 @@ def check_database() -> None:
     with get_engine().connect() as connection:
         connection.execute(text("SELECT 1"))
 
+
+def dispose_engine() -> None:
+    """Close pooled database connections and reset the lazy session factory."""
+    global _engine, _session_factory
+    if _engine is not None:
+        _engine.dispose()
+    _engine = None
+    _session_factory = None
+
+
+atexit.register(dispose_engine)

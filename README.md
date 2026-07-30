@@ -6,35 +6,424 @@ history, and custom scenarios. The app combines roleplay chat, strict scripted
 pronunciation assessment, target-free spoken delivery feedback, grammar
 support, news, and a durable four-week personalized learning plan (PLP).
 
-## Run locally
+## Repository layout
 
-1. Copy `.env.example` to `.env` and configure the constrained PLP writer.
-2. Ensure the local PostgreSQL and pronunciation model assets described below are installed.
-3. Start the complete Android development stack:
-
-```bash
-./start_dev.sh
+```text
+frontend/   Flutter client, Android project, assets, and widget tests
+backend/    FastAPI application, migrations, ML services, and tests
 ```
 
-The launcher starts the user-owned PostgreSQL cluster, configures ADB reverse
-port forwarding, starts FastAPI with the local WhisperX environment, and runs
-Flutter. Heavy speech, grammar, and TTS models load lazily.
+Downloaded model weights are runtime assets rather than source files. They stay
+under ignored backend directories, while the small configuration and vocabulary
+resources needed by the application remain tracked.
 
-Useful checks:
+## Installation requirements
+
+The supported development environments are Ubuntu 24.04 and Windows 11 with
+WSL2 Ubuntu 24.04. The backend is pinned to Python 3.12. The Android client
+requires Flutter 3.35 or newer, an Android SDK, JDK 21, and ADB.
+
+Allow at least 15 GiB of free space for the Python environment, Docker data,
+Ollama, and the approximately 2.8 GiB private model bundle. Android Studio and
+its SDK need additional space. A machine with 16 GiB of RAM is recommended.
+An NVIDIA GPU is optional; add `FORCE_CPU=1` to `.env` to force CPU inference.
+
+Before setup, obtain:
+
+- access to the private `speakflow/randomModels` Hugging Face repository and a
+  Hugging Face read token;
+- the team's `GROQ_API_KEY`;
+- an optional `NEWSAPI_KEY` if live news categories are required;
+- access to this private source repository.
+
+The bootstrap command installs Python dependencies, authenticates with Hugging
+Face when necessary, downloads and verifies the model bundle, starts
+PostgreSQL 16 with pgvector, pulls Ollama's `embeddinggemma` model, applies
+database migrations, ingests the 28 reviewed teaching objects, and restores
+the versioned 8,223-concept RAG vocabulary snapshot with its 7,227 embeddings.
+
+### Linux installation (Ubuntu 24.04)
+
+#### 1. Install Linux packages
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential ca-certificates curl ffmpeg git libsndfile1 \
+  python3.12 python3.12-dev python3.12-venv
+```
+
+Install [Docker Engine with the Compose
+plugin](https://docs.docker.com/engine/install/ubuntu/). Then allow the current
+user to run Docker and verify both commands:
+
+```bash
+sudo usermod -aG docker "$USER"
+newgrp docker
+docker --version
+docker compose version
+```
+
+Install [Ollama for Linux](https://ollama.com/download/linux), start its
+service, and verify that it responds:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl enable --now ollama
+curl http://127.0.0.1:11434/api/tags
+```
+
+If the machine does not use systemd, run `ollama serve` in a separate terminal
+instead.
+
+#### 2. Install Flutter and Android tooling
+
+Follow Flutter's [Android setup
+guide](https://docs.flutter.dev/platform-integration/android/setup) to install
+Flutter 3.35 or newer, Android Studio, the Android SDK, and the required SDK
+command-line tools. Use Android Studio's bundled JDK 21 or configure another
+JDK 21 installation.
+
+Accept the Android licenses and resolve every required item reported by
+Flutter:
+
+```bash
+flutter doctor
+flutter doctor --android-licenses
+```
+
+For a physical Android phone, enable Developer options and USB debugging,
+connect the phone, accept its authorization prompt, and confirm that ADB sees
+it:
+
+```bash
+adb devices
+```
+
+An Android emulator can be used instead.
+
+#### 3. Clone and configure SpeakFlow
+
+Replace `YOUR_PRIVATE_REPOSITORY_URL` with the HTTPS or SSH clone URL shown by
+the private source repository:
+
+```bash
+git clone "YOUR_PRIVATE_REPOSITORY_URL" SpeakFlow
+cd SpeakFlow
+cp .env.example .env
+nano .env
+```
+
+At minimum, set the shared Groq key in the root `.env`:
+
+```dotenv
+GROQ_API_KEY=gsk_your_team_key
+NEWSAPI_KEY=
+```
+
+Do not commit `.env`. It is ignored by Git and loaded automatically by the
+backend, migrations, and curriculum tools.
+
+#### 4. Create the backend environment
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python backend/setup.py
+```
+
+When Hugging Face asks for authentication, paste a read token belonging to a
+user who can access the `speakflow` organization. The repository name is fixed
+in code; no model-repository environment variable is needed. Setup is
+rerunnable if a download or another step is interrupted.
+
+#### 5. Start and verify the backend
+
+```bash
+.venv/bin/python backend/main.py
+```
+
+Keep that terminal open. In another terminal:
+
+```bash
+curl http://127.0.0.1:8000/health
+docker compose ps
+```
+
+The health response should contain `"status":"ok"`, and the `postgres` service
+should be healthy. Heavy speech, grammar, and TTS models load lazily when their
+features are first used.
+
+#### 6. Start the Android client
+
+```bash
+adb reverse tcp:8000 tcp:8000
+cd frontend
+flutter pub get
+flutter run
+```
+
+`adb reverse` lets the Android app reach the backend through
+`http://localhost:8000`. Run it again whenever the device reconnects or
+restarts.
+
+### Windows installation with WSL2
+
+Use Windows for Flutter, Android Studio, the emulator or USB phone, and ADB.
+Use Ubuntu inside WSL2 for Python, Docker commands, Ollama, PostgreSQL, and the
+FastAPI backend. This avoids maintaining a second Windows Python/ML
+environment.
+
+#### 1. Install WSL2 and Ubuntu
+
+Open PowerShell as Administrator:
+
+```powershell
+wsl --install -d Ubuntu-24.04
+wsl --update
+```
+
+Restart Windows if requested, launch Ubuntu, and create the Linux username and
+password. Confirm that the distribution uses WSL2:
+
+```powershell
+wsl --list --verbose
+```
+
+If Ubuntu shows version 1, convert it:
+
+```powershell
+wsl --set-version Ubuntu-24.04 2
+```
+
+See Microsoft's [WSL installation
+guide](https://learn.microsoft.com/windows/wsl/install) if the distribution
+name differs or WSL is already installed.
+
+#### 2. Install Windows-side tools
+
+Install:
+
+- [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/);
+- Git for Windows;
+- Flutter 3.35 or newer;
+- Android Studio with the Android SDK, SDK command-line tools, and bundled
+  JDK 21.
+
+In Docker Desktop, enable **Use the WSL 2 based engine**, then enable integration
+for the Ubuntu distribution under **Settings > Resources > WSL Integration**.
+The official [Docker WSL
+guide](https://docs.docker.com/desktop/features/wsl/) shows these settings.
+
+Open an ordinary Windows PowerShell terminal and verify the Android toolchain:
+
+```powershell
+flutter doctor
+flutter doctor --android-licenses
+adb devices
+```
+
+For a physical phone, enable Developer options and USB debugging and accept the
+authorization prompt. Alternatively, start an Android emulator from Android
+Studio.
+
+#### 3. Clone once on the Windows filesystem
+
+Keeping one checkout under `C:\dev` lets native Windows Flutter and WSL share
+the same files. Replace `YOUR_PRIVATE_REPOSITORY_URL` with the HTTPS or SSH
+clone URL shown by the private source repository:
+
+```powershell
+New-Item -ItemType Directory -Force C:\dev
+git clone "YOUR_PRIVATE_REPOSITORY_URL" C:\dev\SpeakFlow
+cd C:\dev\SpeakFlow
+```
+
+Do not create a Windows Python virtual environment. The backend environment
+will be Linux-based inside WSL.
+
+#### 4. Install WSL backend prerequisites
+
+Open Ubuntu and enter the shared checkout:
+
+```bash
+cd /mnt/c/dev/SpeakFlow
+sudo apt update
+sudo apt install -y \
+  build-essential ca-certificates curl ffmpeg git libsndfile1 \
+  python3.12 python3.12-dev python3.12-venv
+```
+
+With Docker Desktop running and WSL integration enabled, these checks must work
+inside Ubuntu:
+
+```bash
+docker --version
+docker compose version
+```
+
+Install Ollama inside WSL so the backend can consistently reach it at
+`127.0.0.1:11434`:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl enable --now ollama
+curl http://127.0.0.1:11434/api/tags
+```
+
+If `systemctl` is unavailable, update WSL and restart it with `wsl --shutdown`
+from PowerShell. As a temporary alternative, run `ollama serve` in a separate
+Ubuntu terminal.
+
+#### 5. Configure and bootstrap the backend in WSL
+
+Still inside `/mnt/c/dev/SpeakFlow`:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Set at least:
+
+```dotenv
+GROQ_API_KEY=gsk_your_team_key
+NEWSAPI_KEY=
+```
+
+Then create the Linux virtual environment and run setup:
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python backend/setup.py
+```
+
+Paste a Hugging Face read token when prompted. The token's user must have
+access to `speakflow/randomModels`.
+
+#### 6. Start the backend in WSL
+
+```bash
+cd /mnt/c/dev/SpeakFlow
+.venv/bin/python backend/main.py
+```
+
+Keep Ubuntu open. Verify WSL networking from a separate Windows PowerShell
+terminal:
+
+```powershell
+curl.exe http://localhost:8000/health
+```
+
+Current WSL2 versions forward Windows `localhost` to services bound inside WSL.
+If this check fails, run `wsl --update`, then `wsl --shutdown`, reopen Ubuntu,
+and restart the backend.
+
+#### 7. Start Flutter from Windows
+
+In Windows PowerShell:
+
+```powershell
+cd C:\dev\SpeakFlow\frontend
+flutter pub get
+adb devices
+adb reverse tcp:8000 tcp:8000
+flutter run
+```
+
+Flutter and ADB run on Windows; only the backend commands run in Ubuntu. The
+Android app still uses `localhost:8000`, so the PowerShell health check and ADB
+reverse must both succeed.
+
+### Daily startup
+
+After the one-time installation:
+
+1. start Docker Desktop on Windows, or Docker Engine on Linux;
+2. from the repository root, run `docker compose up -d postgres`;
+3. ensure Ollama is running;
+4. start the backend with `.venv/bin/python backend/main.py` from the repository
+   root;
+5. run `adb reverse tcp:8000 tcp:8000`;
+6. run `flutter run` from `frontend/`.
+
+The PostgreSQL container uses a named Docker volume, so normal container
+restarts do not erase learner data.
+
+### Verification and common failures
+
+Run backend checks from the repository root:
 
 ```bash
 cd backend
-/home/amjad/whisperx-env/bin/alembic -c alembic.ini current
-PYTHONPATH=. /home/amjad/whisperx-env/bin/python -m unittest \
-  test_ctc_gop test_pronunciation_features test_pronunciation_service \
-  test_pronunciation_endpoint test_plp test_weekly_mission \
-  test_plp_v3_service test_curriculum_graph test_roleplay_engine \
-  test_roleplay_persistence test_multi_user_auth
+../.venv/bin/python -m alembic -c alembic.ini current
+PYTHONPATH=. ../.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+```
 
-cd ..
+Run frontend checks:
+
+```bash
+cd frontend
 flutter test
 flutter analyze
 ```
+
+Common setup failures:
+
+- **Hugging Face returns 401 or 403:** confirm organization access, then run
+  `.venv/bin/hf auth login` and rerun setup.
+- **`docker` is unavailable in WSL:** start Docker Desktop and enable its WSL
+  integration for Ubuntu.
+- **Port 5432 is already occupied:** stop the other PostgreSQL service, or
+  change both `POSTGRES_PORT` and the port in `DATABASE_URL` inside `.env`.
+- **Ollama cannot be reached:** start `ollama serve` and verify
+  `http://127.0.0.1:11434/api/tags`.
+- **ADB reports no devices:** unlock the phone, accept USB debugging, check the
+  cable, or start the Android emulator.
+- **The app cannot reach the backend:** verify `/health`, then rerun
+  `adb reverse tcp:8000 tcp:8000`.
+- **Groq features fail:** ensure `GROQ_API_KEY` is populated in the root `.env`
+  without quotes or extra spaces, then restart the backend.
+
+## Private model bundle
+
+The bundle contains only assets used by the current application:
+
+```text
+backend/pretrained_models/wav2vec2_xlsr53_cmu39_ctc/
+backend/pretrained_models/gopt_ctc/
+backend/pretrained_models/arabic_pronunciation_ctc_v3/
+backend/.models/gector/gector-roberta-base-5k/
+backend/.models/runtime/whisperx-small-en/
+backend/.models/runtime/whisperx-align/
+backend/.models/runtime/kokoro/
+backend/.models/nltk_data/
+backend/.models/curriculum/rag-curriculum-v1.zip
+```
+
+It is approximately 2.8 GiB. Every downloaded file is checked against the
+bundle's size and SHA-256 manifest before it is promoted into the runtime path.
+The bundled GECToR safetensors file contains both the RoBERTa encoder and its
+grammar-correction heads. SpeakFlow constructs the architecture locally, so a
+separate `roberta-base` checkout or Hugging Face runtime download is not
+required.
+
+The model-repository owner uploads the local assets once:
+
+```bash
+hf auth login
+PYTHONPATH=backend .venv/bin/python -m plp.curriculum_snapshot export
+.venv/bin/python backend/model_bundle.py inventory
+.venv/bin/python backend/model_bundle.py upload
+```
+
+Teammates authenticate once with `hf auth login`; `backend/setup.py` handles
+the verified download from `speakflow/randomModels` afterward. Large weights
+are reconstructed automatically from verified chunks. Setup restores the RAG
+snapshot transactionally and idempotently, so rerunning it neither duplicates
+words nor recomputes their embeddings. Local training source and raw datasets
+are intentionally not part of the application repository.
 
 ## Speech scoring boundary
 
@@ -66,9 +455,23 @@ weekly PLP surface language. Rate-limited PLP jobs wait for Groq's reported
 token-window reset and resume automatically. Credentials and provider settings
 remain in the ignored `.env`.
 
-Runtime data is stored outside Git under
-`/home/amjad/english_learning_app_data`. The local database helper is
-`scripts/plp_postgres.sh`.
+Runtime data is stored outside Git. Downloaded runtime model weights live under
+the ignored `backend/.models/` directory.
+
+The RAG curriculum has two reproducible layers:
+
+- 28 project-authored reviewed teaching objects covering seven domains at
+  A1–B2, ingested from `backend/plp/seed.py`;
+- a versioned private snapshot containing 8,223 source-attributed CEFR-J
+  concepts, including 7,227 retrieval-ready vocabulary records enriched with
+  Words-CEFR frequency, WordNet definitions, CMUdict IPA, and the exact
+  `embeddinggemma:latest` 768D vectors.
+
+The snapshot is restored into PostgreSQL's `curriculum_concepts` table during
+setup. It is part of the private Hugging Face bundle rather than Git because it
+contains about 21 MiB of generated metadata and embeddings. A missing,
+modified, wrong-version, or wrong-embedding-model snapshot fails setup instead
+of silently creating an incomplete learning plan.
 
 ## Accounts and data ownership
 

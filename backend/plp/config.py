@@ -3,10 +3,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from runtime_env import PROJECT_ROOT, load_runtime_env
 
-DATA_ROOT = Path(
-    os.environ.get("PLP_DATA_ROOT", "/home/amjad/english_learning_app_data")
-).expanduser()
+
+load_runtime_env()
+
+DATA_ROOT = Path(os.environ.get("PLP_DATA_ROOT", ".local_data")).expanduser()
+if not DATA_ROOT.is_absolute():
+    DATA_ROOT = PROJECT_ROOT / DATA_ROOT
 RAG_ROOT = DATA_ROOT / "rag"
 
 DATABASE_URL = os.environ.get(

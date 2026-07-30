@@ -6,9 +6,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from runtime_env import load_runtime_env
 from plp.models import Base
 
 
+load_runtime_env()
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

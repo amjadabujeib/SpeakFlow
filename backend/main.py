@@ -10,6 +10,15 @@ import tempfile
 import threading
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
+
+from runtime_env import load_runtime_env
+
+load_runtime_env()
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba_cache")
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 import requests
 import numpy as np
 import librosa
@@ -33,6 +42,7 @@ from pronunciation_core import (
 )
 from ctc_pronunciation_service import Wav2Vec2GoptScorer
 from plp import plp_service, router as plp_router
+from plp.database import dispose_engine
 from auth_api import router as auth_router
 from auth_service import (
     AuthInvalidCredentialsError,
@@ -65,26 +75,19 @@ from roleplay_engine import (
     objective_progress,
     validated_objective_updates,
 )
-# Prevent HuggingFace from trying to connect to the internet (which caused MaxRetryErrors)
-# Speech, GECToR, TTS, grading, and persistence stay local. Language generation
-# uses Groq through environment-only credentials.
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
-os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba_cache")
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-# `start_dev.sh` loads provider settings from the ignored `.env` file.
-# Never add a source-code API-key fallback.
-
 # --- Import ML Libraries ---
 try:
     import whisperx
     WHISPER_AVAILABLE = True
 except ImportError:
-    print("Warning: whisperx not found. Make sure you run this in the whisperx-env conda environment.")
+    print(
+        "Warning: WhisperX is not installed in the active backend "
+        "virtual environment."
+    )
     WHISPER_AVAILABLE = False
 
 try:
-    from kokoro import KPipeline
+    from kokoro import KModel, KPipeline
     KOKORO_AVAILABLE = True
 except ImportError:
     print("Warning: Kokoro not found. TTS will be mocked.")
@@ -93,8 +96,8 @@ except ImportError:
 import torch
 
 try:
-    import gector
-    from gector import GECToR, predict as gector_predict, load_verb_dict
+    from gector import predict as gector_predict, load_verb_dict
+    from gector_runtime import load_self_contained_gector
     from transformers import AutoTokenizer
     GECTOR_AVAILABLE = True
 except ImportError:
@@ -184,7 +187,14 @@ _model_load_lock = threading.RLock()
 _kokoro_inference_lock = threading.Lock()
 _failed_model_loads: set[str] = set()
 _chat_inference_lock = asyncio.Lock()
-_gector_root = Path(__file__).resolve().parent.parent / "roberta" / "gector"
+_backend_root = Path(__file__).resolve().parent
+_gector_model_root = _backend_root / ".models" / "gector"
+_gector_resource_root = _backend_root / "resources" / "gector"
+_runtime_model_root = _backend_root / ".models" / "runtime"
+_whisper_model_root = _runtime_model_root / "whisperx-small-en"
+_whisper_align_root = _runtime_model_root / "whisperx-align"
+_kokoro_model_root = _runtime_model_root / "kokoro"
+_kokoro_voice_path = _kokoro_model_root / "voices" / "af_heart.pt"
 
 
 def _load_gector_model() -> bool:
@@ -199,12 +209,16 @@ def _load_gector_model() -> bool:
             return True
         try:
             print("Loading GECToR RoBERTa Grammar Model on first use...")
-            model_id = str(_gector_root / "gector-roberta-base-5k")
-            gector_tokenizer = AutoTokenizer.from_pretrained(model_id)
-            gector_model = GECToR.from_pretrained(model_id)
+            model_id = str(_gector_model_root / "gector-roberta-base-5k")
+            gector_tokenizer = AutoTokenizer.from_pretrained(
+                model_id,
+                local_files_only=True,
+            )
+            gector_model = load_self_contained_gector(model_id)
             gector_model.to(device)
+            gector_model.eval()
             gector_encode, gector_decode = load_verb_dict(
-                str(_gector_root / "data" / "verb-form-vocab.txt")
+                str(_gector_resource_root / "verb-form-vocab.txt")
             )
             print("GECToR loaded successfully!")
             return True
@@ -229,10 +243,17 @@ def _load_whisper_models() -> bool:
         try:
             print(f"Loading WhisperX model (small.en) on {device} on first use...")
             whisper_model = whisperx.load_model(
-                "small.en", device, compute_type=compute_type
+                str(_whisper_model_root),
+                device,
+                compute_type=compute_type,
+                language="en",
+                local_files_only=True,
             )
             align_model, align_metadata = whisperx.load_align_model(
-                language_code="en", device=device
+                language_code="en",
+                device=device,
+                model_dir=str(_whisper_align_root),
+                model_cache_only=True,
             )
             print("WhisperX loaded successfully!")
             return True
@@ -242,10 +263,17 @@ def _load_whisper_models() -> bool:
                 try:
                     print("Retrying WhisperX on CPU...")
                     whisper_model = whisperx.load_model(
-                        "small.en", "cpu", compute_type="int8"
+                        str(_whisper_model_root),
+                        "cpu",
+                        compute_type="int8",
+                        language="en",
+                        local_files_only=True,
                     )
                     align_model, align_metadata = whisperx.load_align_model(
-                        language_code="en", device="cpu"
+                        language_code="en",
+                        device="cpu",
+                        model_dir=str(_whisper_align_root),
+                        model_cache_only=True,
                     )
                     print("WhisperX loaded successfully on CPU.")
                     return True
@@ -272,12 +300,26 @@ def _load_kokoro_pipeline() -> bool:
         if kokoro_pipeline is not None:
             return True
         try:
+            model = KModel(
+                repo_id="hexgrad/Kokoro-82M",
+                config=str(_kokoro_model_root / "config.json"),
+                model=str(_kokoro_model_root / "kokoro-v1_0.pth"),
+            ).to(device).eval()
             try:
                 print(f"Loading Kokoro TTS pipeline on {device} on first use...")
-                kokoro_pipeline = KPipeline(lang_code='a', device=device)
+                kokoro_pipeline = KPipeline(
+                    lang_code="a",
+                    repo_id="hexgrad/Kokoro-82M",
+                    model=model,
+                    device=device,
+                )
             except TypeError:
-                kokoro_pipeline = KPipeline(lang_code='a')
-                if hasattr(kokoro_pipeline, 'model'):
+                kokoro_pipeline = KPipeline(
+                    lang_code="a",
+                    repo_id="hexgrad/Kokoro-82M",
+                    model=model,
+                )
+                if hasattr(kokoro_pipeline, "model"):
                     kokoro_pipeline.model.to(device)
             print("Kokoro loaded successfully!")
             return True
@@ -349,6 +391,7 @@ def start_plp_worker():
 @app.on_event("shutdown")
 def stop_plp_worker():
     plp_service.stop_worker()
+    dispose_engine()
 
 def _groq_client() -> OpenAI | None:
     api_key = os.environ.get("GROQ_API_KEY")
@@ -695,7 +738,7 @@ def generate_tts_audio(text: str, output_path: str):
         with _kokoro_inference_lock:
             generator = kokoro_pipeline(
                 text,
-                voice="af_heart",
+                voice=str(_kokoro_voice_path),
                 speed=1.0,
                 split_pattern=r"\n+",
             )

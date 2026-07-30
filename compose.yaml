@@ -1,0 +1,24 @@
+name: speakflow
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg16-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-english_tutor}
+      POSTGRES_USER: ${POSTGRES_USER:-english_tutor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-english_tutor}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - speakflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-english_tutor} -d ${POSTGRES_DB:-english_tutor}
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  speakflow_postgres_data:
