@@ -32,7 +32,7 @@ Before setup, obtain:
 
 - access to the private `speakflow/randomModels` Hugging Face repository and a
   Hugging Face read token;
-- the team's `GROQ_API_KEY`;
+- a `GROQ_API_KEY`;
 - an optional `NEWSAPI_KEY` if live news categories are required;
 - access to this private source repository.
 
@@ -41,6 +41,32 @@ Face when necessary, downloads and verifies the model bundle, starts
 PostgreSQL 16 with pgvector, pulls Ollama's `embeddinggemma` model, applies
 database migrations, ingests the 28 reviewed teaching objects, and restores
 the versioned 8,223-concept RAG vocabulary snapshot with its 7,227 embeddings.
+
+### Private model access and automatic download
+
+The model bundle is stored in the private
+[`speakflow/randomModels`](https://huggingface.co/speakflow/randomModels)
+Hugging Face repository. Before running setup:
+
+1. sign in with a Hugging Face account that has read access to
+   `speakflow/randomModels`; organization administrators can provide this
+   access by adding the account to the `speakflow` organization;
+2. create a personal
+   [Hugging Face access token](https://huggingface.co/settings/tokens) with the
+   **Read** role. Write access is not required;
+3. run `.venv/bin/python backend/setup.py` as shown below and paste the token
+   when prompted.
+
+The token must not be shared, committed, or added to `.env`. Hugging Face saves
+the login in the current Linux user's local cache, so authentication is normally
+required only once per machine or WSL distribution. A Windows Hugging Face
+login does not authenticate the separate Ubuntu environment inside WSL.
+
+No model files need to be selected or downloaded manually. Setup downloads the
+approximately 2.8 GiB bundle from the fixed repository, reconstructs chunked
+large files, verifies every file's size and SHA-256 digest, and installs each
+asset into its expected backend path. If setup is interrupted, run the same
+command again; already verified files are retained.
 
 ### Linux installation (Ubuntu 24.04)
 
@@ -111,10 +137,10 @@ cp .env.example .env
 nano .env
 ```
 
-At minimum, set the shared Groq key in the root `.env`:
+At minimum, set a Groq key in the root `.env`:
 
 ```dotenv
-GROQ_API_KEY=gsk_your_team_key
+GROQ_API_KEY=gsk_your_key
 NEWSAPI_KEY=
 ```
 
@@ -129,10 +155,10 @@ python3.12 -m venv .venv
 .venv/bin/python backend/setup.py
 ```
 
-When Hugging Face asks for authentication, paste a read token belonging to a
-user who can access the `speakflow` organization. The repository name is fixed
-in code; no model-repository environment variable is needed. Setup is
-rerunnable if a download or another step is interrupted.
+At the Hugging Face prompt, use the personal read token described in
+[Private model access and automatic download](#private-model-access-and-automatic-download).
+The model repository is fixed in code; no model-repository environment
+variable is needed.
 
 #### 5. Start and verify the backend
 
@@ -234,7 +260,7 @@ will be Linux-based inside WSL.
 
 #### 4. Install WSL backend prerequisites
 
-Open Ubuntu and enter the shared checkout:
+Open Ubuntu and enter the repository checkout:
 
 ```bash
 cd /mnt/c/dev/SpeakFlow
@@ -275,10 +301,10 @@ wsl --shutdown
 
 Do not install Docker Engine inside this Ubuntu distribution and also enable
 Docker Desktop integration for it. Choose one Docker provider to avoid daemon,
-socket, and CLI conflicts. Docker Desktop remains an optional alternative: if
-the team chooses it, do not install Docker Engine inside Ubuntu, and follow
-Docker's [WSL integration
-guide](https://docs.docker.com/desktop/features/wsl/).
+socket, and CLI conflicts. Docker Desktop remains an optional alternative. If
+Docker Desktop is used, do not install Docker Engine inside Ubuntu; follow
+Docker's [WSL integration guide](https://docs.docker.com/desktop/features/wsl/)
+instead.
 
 Install Ollama inside WSL so the backend can consistently reach it at
 `127.0.0.1:11434`:
@@ -305,7 +331,7 @@ nano .env
 Set at least:
 
 ```dotenv
-GROQ_API_KEY=gsk_your_team_key
+GROQ_API_KEY=gsk_your_key
 NEWSAPI_KEY=
 ```
 
@@ -317,8 +343,8 @@ python3.12 -m venv .venv
 .venv/bin/python backend/setup.py
 ```
 
-Paste a Hugging Face read token when prompted. The token's user must have
-access to `speakflow/randomModels`.
+At the Hugging Face prompt, use the personal read token described in
+[Private model access and automatic download](#private-model-access-and-automatic-download).
 
 #### 6. Start the backend in WSL
 
@@ -430,7 +456,8 @@ grammar-correction heads. SpeakFlow constructs the architecture locally, so a
 separate `roberta-base` checkout or Hugging Face runtime download is not
 required.
 
-The model-repository owner uploads the local assets once:
+To publish or update the model bundle, a repository maintainer with write
+access runs:
 
 ```bash
 hf auth login
@@ -439,12 +466,12 @@ PYTHONPATH=backend .venv/bin/python -m plp.curriculum_snapshot export
 .venv/bin/python backend/model_bundle.py upload
 ```
 
-Teammates authenticate once with `hf auth login`; `backend/setup.py` handles
-the verified download from `speakflow/randomModels` afterward. Large weights
-are reconstructed automatically from verified chunks. Setup restores the RAG
-snapshot transactionally and idempotently, so rerunning it neither duplicates
-words nor recomputes their embeddings. Local training source and raw datasets
-are intentionally not part of the application repository.
+Runtime authentication and download are covered in
+[Private model access and automatic download](#private-model-access-and-automatic-download).
+Setup restores the RAG snapshot transactionally and idempotently, so rerunning
+it neither duplicates words nor recomputes their embeddings. Local training
+source and raw datasets are intentionally not part of the application
+repository.
 
 ## Speech scoring boundary
 
