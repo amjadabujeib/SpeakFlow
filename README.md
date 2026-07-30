@@ -104,11 +104,8 @@ An Android emulator can be used instead.
 
 #### 3. Clone and configure SpeakFlow
 
-Replace `YOUR_PRIVATE_REPOSITORY_URL` with the HTTPS or SSH clone URL shown by
-the private source repository:
-
 ```bash
-git clone "YOUR_PRIVATE_REPOSITORY_URL" SpeakFlow
+git clone https://github.com/amjadabujeib/SpeakFlow.git SpeakFlow
 cd SpeakFlow
 cp .env.example .env
 nano .env
@@ -204,16 +201,10 @@ name differs or WSL is already installed.
 
 Install:
 
-- [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/);
 - Git for Windows;
 - Flutter 3.35 or newer;
 - Android Studio with the Android SDK, SDK command-line tools, and bundled
   JDK 21.
-
-In Docker Desktop, enable **Use the WSL 2 based engine**, then enable integration
-for the Ubuntu distribution under **Settings > Resources > WSL Integration**.
-The official [Docker WSL
-guide](https://docs.docker.com/desktop/features/wsl/) shows these settings.
 
 Open an ordinary Windows PowerShell terminal and verify the Android toolchain:
 
@@ -230,12 +221,11 @@ Studio.
 #### 3. Clone once on the Windows filesystem
 
 Keeping one checkout under `C:\dev` lets native Windows Flutter and WSL share
-the same files. Replace `YOUR_PRIVATE_REPOSITORY_URL` with the HTTPS or SSH
-clone URL shown by the private source repository:
+the same files:
 
 ```powershell
 New-Item -ItemType Directory -Force C:\dev
-git clone "YOUR_PRIVATE_REPOSITORY_URL" C:\dev\SpeakFlow
+git clone https://github.com/amjadabujeib/SpeakFlow.git C:\dev\SpeakFlow
 cd C:\dev\SpeakFlow
 ```
 
@@ -254,13 +244,41 @@ sudo apt install -y \
   python3.12 python3.12-dev python3.12-venv
 ```
 
-With Docker Desktop running and WSL integration enabled, these checks must work
-inside Ubuntu:
+Docker Desktop is not required. Install [Docker Engine and the Docker Compose
+plugin](https://docs.docker.com/engine/install/ubuntu/) directly inside the
+Ubuntu distribution. Enable the service, give the current Linux user access,
+and verify the installation:
 
 ```bash
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+newgrp docker
 docker --version
 docker compose version
+docker run --rm hello-world
 ```
+
+Current Ubuntu installations created by `wsl --install` use `systemd` by
+default. If `systemctl` reports that the system was not booted with systemd,
+create or edit `/etc/wsl.conf`:
+
+```ini
+[boot]
+systemd=true
+```
+
+Then close Ubuntu, restart WSL from PowerShell, and reopen Ubuntu:
+
+```powershell
+wsl --shutdown
+```
+
+Do not install Docker Engine inside this Ubuntu distribution and also enable
+Docker Desktop integration for it. Choose one Docker provider to avoid daemon,
+socket, and CLI conflicts. Docker Desktop remains an optional alternative: if
+the team chooses it, do not install Docker Engine inside Ubuntu, and follow
+Docker's [WSL integration
+guide](https://docs.docker.com/desktop/features/wsl/).
 
 Install Ollama inside WSL so the backend can consistently reach it at
 `127.0.0.1:11434`:
@@ -340,7 +358,8 @@ reverse must both succeed.
 
 After the one-time installation:
 
-1. start Docker Desktop on Windows, or Docker Engine on Linux;
+1. on Windows, open Ubuntu in WSL so its systemd-managed Docker Engine and
+   Ollama services start; on native Linux, ensure those services are running;
 2. from the repository root, run `docker compose up -d postgres`;
 3. ensure Ollama is running;
 4. start the backend with `.venv/bin/python backend/main.py` from the repository
@@ -373,8 +392,10 @@ Common setup failures:
 
 - **Hugging Face returns 401 or 403:** confirm organization access, then run
   `.venv/bin/hf auth login` and rerun setup.
-- **`docker` is unavailable in WSL:** start Docker Desktop and enable its WSL
-  integration for Ubuntu.
+- **`docker` is unavailable in WSL:** confirm Docker Engine was installed
+  inside Ubuntu, then run `sudo systemctl enable --now docker`. If the service
+  cannot use systemd, enable systemd in `/etc/wsl.conf`, run `wsl --shutdown`
+  from PowerShell, and reopen Ubuntu.
 - **Port 5432 is already occupied:** stop the other PostgreSQL service, or
   change both `POSTGRES_PORT` and the port in `DATABASE_URL` inside `.env`.
 - **Ollama cannot be reached:** start `ollama serve` and verify
