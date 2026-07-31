@@ -8,6 +8,7 @@ import re
 import socket
 import tempfile
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -22,11 +23,8 @@ os.environ["TRANSFORMERS_OFFLINE"] = "1"
 import requests
 import numpy as np
 import librosa
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query, HTTPException
 from fastapi.responses import FileResponse, Response
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from starlette.background import BackgroundTask
 import uvicorn
 import soundfile as sf
@@ -41,14 +39,13 @@ from pronunciation_core import (
     normalized_english_words,
 )
 from ctc_pronunciation_service import Wav2Vec2GoptScorer
-from plp import plp_service, router as plp_router
 from plp.database import dispose_engine
-from auth_api import router as auth_router
-from auth_service import (
+from speakflow.features.auth.application.errors import (
     AuthInvalidCredentialsError,
     AuthUnavailableError,
-    auth_service,
 )
+from speakflow.features.auth.infrastructure.service import auth_service
+from speakflow.features.auth.presentation import router as auth_router
 from plp.identity import bind_user
 from plp.schemas import ActivityAttemptInput
 from plp.schemas import (
@@ -65,6 +62,7 @@ from plp.service import (
     PlpInvalidAttemptError,
     PlpNotFoundError,
     PlpUnavailableError,
+    plp_service,
 )
 from roleplay_engine import (
     aggregate_session,
@@ -75,6 +73,26 @@ from roleplay_engine import (
     objective_progress,
     validated_objective_updates,
 )
+from speakflow.app import create_application, mount_versioned_aliases
+from speakflow.app.health import build_health_router
+from speakflow.features.language_tools.presentation import (
+    build_language_tools_router,
+)
+from speakflow.features.language_tools.presentation.schemas import (
+    GrammarCheckRequest,
+    VocabularyLookupRequest,
+)
+from speakflow.features.learning_plan.presentation import (
+    router as learning_plan_router,
+)
+from speakflow.features.news.presentation import build_news_router
+from speakflow.features.pronunciation.presentation import (
+    build_pronunciation_router,
+)
+from speakflow.features.roleplay.presentation.runtime_router import (
+    build_roleplay_runtime_router,
+)
+from speakflow.features.roleplay.presentation import router as roleplay_router
 # --- Import ML Libraries ---
 try:
     import whisperx
@@ -104,49 +122,24 @@ except ImportError:
     print("Warning: gector not found. Grammar correction will be disabled.")
     GECTOR_AVAILABLE = False
 
-app = FastAPI(title="SpeakFlow Backend", version="2.0.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.include_router(plp_router)
-app.include_router(auth_router)
-
-
-@app.middleware("http")
-async def authenticated_user_context(request, call_next):
-    if (
-        request.method == "OPTIONS"
-        or not request.url.path.startswith("/api/")
-        or request.url.path.startswith("/api/auth/")
-        or request.url.path == "/api/tts"
-        or request.url.path == "/api/news/image"
-    ):
-        return await call_next(request)
-    scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    if scheme.casefold() != "bearer" or not token.strip():
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "a bearer token is required"},
-        )
+@asynccontextmanager
+async def _application_lifespan(_application):
+    print("Speech, grammar, TTS, and Practice models will load on first use.")
+    # PostgreSQL is checked lazily by the worker and endpoints. A missing PLP
+    # database must not prevent Chat, Practice, or News from starting.
+    plp_service.start_worker()
     try:
-        user = await asyncio.to_thread(auth_service.authenticate, token.strip())
-    except AuthInvalidCredentialsError as exc:
-        return JSONResponse(status_code=401, content={"detail": str(exc)})
-    except AuthUnavailableError as exc:
-        return JSONResponse(status_code=503, content={"detail": str(exc)})
-    with bind_user(user.user_id):
-        return await call_next(request)
+        yield
+    finally:
+        plp_service.stop_worker()
+        dispose_engine()
 
 
-class GrammarCheckRequest(BaseModel):
-    text: str
+app = create_application(
+    routers=(auth_router, learning_plan_router, roleplay_router),
+    lifespan=_application_lifespan,
+)
 
-
-class VocabularyLookupRequest(BaseModel):
-    word: str
 
 # --- Global Model Initialization ---
 
@@ -376,23 +369,6 @@ def pronunciation_guide(text: str) -> dict:
     }
 
 
-@app.on_event("startup")
-def announce_lazy_models():
-    print("Speech, grammar, TTS, and Practice models will load on first use.")
-
-
-@app.on_event("startup")
-def start_plp_worker():
-    # PostgreSQL is checked lazily by the worker and endpoints. A missing PLP
-    # database must not prevent Chat, Practice, or News from starting.
-    plp_service.start_worker()
-
-
-@app.on_event("shutdown")
-def stop_plp_worker():
-    plp_service.stop_worker()
-    dispose_engine()
-
 def _groq_client() -> OpenAI | None:
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -540,7 +516,6 @@ def get_grammar_feedback(user_text: str, corrected_text: str | None = None):
         return f"Corrected: {corrected_text}" if corrected_text else "Correct"
 
 
-@app.post("/api/grammar/check")
 async def check_grammar(payload: GrammarCheckRequest) -> dict:
     """Run the trusted local corrector and explain only changes it produced."""
     text = payload.text.strip()
@@ -597,7 +572,6 @@ async def check_grammar(payload: GrammarCheckRequest) -> dict:
     }
 
 
-@app.post("/api/vocabulary/lookup")
 async def lookup_word(payload: VocabularyLookupRequest) -> dict:
     """Return a learner-language translation and English dictionary entry."""
     word = payload.word.strip()
@@ -757,7 +731,6 @@ def generate_tts_audio(text: str, output_path: str):
         print(f"Kokoro TTS generation failed: {e}")
         return False
 
-@app.get("/api/tts")
 async def get_tts_audio(text: str = Query(...)):
     if not KOKORO_AVAILABLE:
         raise HTTPException(status_code=503, detail="TTS service is unavailable")
@@ -777,7 +750,6 @@ async def get_tts_audio(text: str = Query(...)):
         raise HTTPException(status_code=500, detail="Failed to generate TTS audio")
 
 
-@app.get("/api/pronunciation/guide")
 async def get_pronunciation_guide(text: str = Query(..., max_length=120)) -> dict:
     try:
         return await asyncio.to_thread(pronunciation_guide, text)
@@ -1607,10 +1579,6 @@ async def _finalize_disconnected_roleplay(
         print(f"Roleplay disconnect finalization failed: {exc}")
 
 
-@app.post(
-    "/api/roleplay/scenarios/draft",
-    response_model=RoleplayScenarioDraftView,
-)
 async def generate_roleplay_scenario_draft(
     payload: RoleplayScenarioDraftInput,
 ) -> RoleplayScenarioDraftView:
@@ -1622,10 +1590,6 @@ async def generate_roleplay_scenario_draft(
     return await asyncio.to_thread(_roleplay_scenario_draft, payload, level)
 
 
-@app.post(
-    "/api/translation/arabic",
-    response_model=ArabicTranslationView,
-)
 async def translate_arabic(
     payload: ArabicTranslationInput,
 ) -> ArabicTranslationView:
@@ -1641,11 +1605,6 @@ async def translate_arabic(
         ) from exc
 
 
-@app.post(
-    "/api/roleplay/sessions/{client_session_id}/escape-route",
-    response_model=ArabicTranslationView,
-    include_in_schema=False,
-)
 async def legacy_roleplay_escape_route(
     client_session_id: str,
     payload: ArabicTranslationInput,
@@ -1657,7 +1616,6 @@ async def legacy_roleplay_escape_route(
 
 
 
-@app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     scheme, _, token = websocket.headers.get("authorization", "").partition(" ")
     if scheme.casefold() != "bearer":
@@ -1954,10 +1912,6 @@ async def _roleplay_websocket_session(websocket: WebSocket):
         await _finalize_disconnected_roleplay(client_session_id)
 
 
-@app.post(
-    "/api/roleplay/sessions/{client_session_id}/finalize",
-    response_model=RoleplayFinalizeView,
-)
 async def finalize_roleplay_session(
     client_session_id: str,
     payload: RoleplayFinalizeInput,
@@ -2041,7 +1995,6 @@ _NEWS_CATEGORIES = {
 }
 
 
-@app.get("/api/news")
 def get_personalized_news(
     level: str = Query(default="B1", pattern=r"^(A1|A2|B1|B2)$"),
     category: str = Query(default="general"),
@@ -2163,7 +2116,6 @@ def _is_public_news_image_url(value: str) -> bool:
     return True
 
 
-@app.get("/api/news/image")
 def proxy_news_image(url: str = Query(..., max_length=2000)):
     """Proxy public NewsAPI images through ADB-reversed localhost."""
     current_url = url
@@ -2886,7 +2838,6 @@ def _single_word_acoustically_contradicted(result: dict) -> bool:
     return True
 
 
-@app.post("/api/pronunciation")
 async def check_pronunciation(
     target_word: str = Form(...),
     file: UploadFile = File(...),
@@ -3142,7 +3093,6 @@ async def check_pronunciation(
             os.remove(temp_audio_path)
 
 
-@app.get("/health")
 def health() -> dict:
     """Report capability state without forcing heavyweight model loads."""
     return {
@@ -3158,6 +3108,36 @@ def health() -> dict:
         "groq_configured": bool(os.environ.get("GROQ_API_KEY")),
         "plp": plp_service.health(),
     }
+
+
+app.include_router(
+    build_language_tools_router(
+        check_grammar=check_grammar,
+        lookup_word=lookup_word,
+        get_tts_audio=get_tts_audio,
+        pronunciation_guide=get_pronunciation_guide,
+    )
+)
+app.include_router(
+    build_roleplay_runtime_router(
+        generate_scenario_draft=generate_roleplay_scenario_draft,
+        translate_arabic=translate_arabic,
+        legacy_escape_route=legacy_roleplay_escape_route,
+        finalize_session=finalize_roleplay_session,
+        websocket_endpoint=websocket_endpoint,
+    )
+)
+app.include_router(
+    build_news_router(
+        list_news=get_personalized_news,
+        proxy_image=proxy_news_image,
+    )
+)
+app.include_router(
+    build_pronunciation_router(score_pronunciation=check_pronunciation)
+)
+app.include_router(build_health_router(health))
+mount_versioned_aliases(app)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

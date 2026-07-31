@@ -19,6 +19,15 @@ COMPOSE_FILE = PROJECT_ROOT / "compose.yaml"
 ENV_FILE = PROJECT_ROOT / ".env"
 ENV_EXAMPLE = PROJECT_ROOT / ".env.example"
 
+_PACKAGING_COMMANDS = {
+    "bdist_wheel",
+    "build",
+    "build_ext",
+    "dist_info",
+    "egg_info",
+    "sdist",
+}
+
 
 def _run(command: list[str], *, cwd: Path = PROJECT_ROOT) -> None:
     print(f"\n> {' '.join(command)}", flush=True)
@@ -191,4 +200,13 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Setuptools still executes a top-level setup.py while building a modern
+    # pyproject package. Keep the historical bootstrap command available to
+    # developers without letting it consume packaging arguments such as
+    # ``egg_info`` or ``bdist_wheel``.
+    if any(argument in _PACKAGING_COMMANDS for argument in sys.argv[1:]):
+        from setuptools import setup as setuptools_setup
+
+        setuptools_setup()
+    else:
+        main()
