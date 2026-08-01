@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 import 'roleplay_models.dart';
 
 const _card = Color(0xFF1A2235);
@@ -44,9 +44,8 @@ class _RoleplayLanguageHelpSheetState extends State<RoleplayLanguageHelpSheet> {
       _options = const [];
     });
     try {
-      final result = await ApiService.getArabicTranslationOptions(
-        arabicText: source,
-      );
+      final result = await AppDependencies.instance.roleplay
+          .arabicTranslationOptions(source);
       final rawOptions = result['options'];
       if (rawOptions is! List) {
         throw const FormatException('Missing English options');

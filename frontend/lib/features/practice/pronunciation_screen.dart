@@ -8,7 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 import '../../core/data/phoneme_progress_store.dart';
 
 class PronunciationLaunchArgs {
@@ -127,7 +127,7 @@ class _PronunciationScreenState extends State<PronunciationScreen>
       _isGuideLoading = true;
       _guideError = null;
     });
-    final result = await ApiService.getPronunciationGuide(target);
+    final result = await AppDependencies.instance.pronunciation.guide(target);
     if (!mounted || request != _guideRequest) return;
     setState(() {
       _isGuideLoading = false;
@@ -173,7 +173,9 @@ class _PronunciationScreenState extends State<PronunciationScreen>
     });
     try {
       await _examplePlayer.play(
-        UrlSource(ApiService.ttsUri(target).toString()),
+        UrlSource(
+          AppDependencies.instance.languageTools.ttsUri(target).toString(),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
@@ -231,7 +233,7 @@ class _PronunciationScreenState extends State<PronunciationScreen>
     });
 
     if (path != null) {
-      final result = await ApiService.checkPronunciation(
+      final result = await AppDependencies.instance.pronunciation.score(
         _wordCtrl.text.trim(),
         path,
       );

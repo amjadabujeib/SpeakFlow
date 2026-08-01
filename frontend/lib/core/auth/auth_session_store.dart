@@ -9,7 +9,6 @@ class AuthSessionStore extends ChangeNotifier {
   AuthSessionStore._();
 
   static final AuthSessionStore instance = AuthSessionStore._();
-  static const _baseUrl = 'http://localhost:8000';
 
   String? _accessToken;
   Map<String, dynamic>? _user;
@@ -38,30 +37,6 @@ class AuthSessionStore extends ChangeNotifier {
     }
   }
 
-  Future<bool> validate() async {
-    final token = _accessToken;
-    if (token == null) return false;
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/api/auth/me'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      if (response.statusCode == 401) {
-        await clear();
-        return false;
-      }
-      if (response.statusCode != 200) {
-        throw StateError('Authentication check failed.');
-      }
-      _user = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-      await _persist();
-      notifyListeners();
-      return true;
-    } catch (_) {
-      rethrow;
-    }
-  }
-
   Future<void> setSession(Map<String, dynamic> payload) async {
     final token = payload['access_token']?.toString();
     final user = payload['user'];
@@ -69,6 +44,15 @@ class AuthSessionStore extends ChangeNotifier {
       throw const FormatException('Invalid authentication response.');
     }
     _accessToken = token;
+    _user = Map<String, dynamic>.from(user);
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<void> updateUser(Map<String, dynamic> user) async {
+    if (_accessToken == null) {
+      throw StateError('Cannot update a user without an active session.');
+    }
     _user = Map<String, dynamic>.from(user);
     await _persist();
     notifyListeners();

@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/auth/auth_session_store.dart';
+import '../core/network/api_client.dart' show ApiClient, ApiException;
+import '../core/network/api_config.dart';
+import '../features/learning_plan/data/learning_plan_api.dart';
 import 'plp_models.dart';
 
 abstract class PlpRepository {
@@ -120,96 +122,77 @@ class PlpAttemptResult {
 class HttpPlpRepository extends PlpRepository {
   static const defaultBaseUrl = 'http://127.0.0.1:8000';
   final String baseUrl;
-  final http.Client _client;
+  final LearningPlanApi _api;
 
   HttpPlpRepository({this.baseUrl = defaultBaseUrl, http.Client? client})
-    : _client = client ?? AuthenticatedHttpClient();
+    : _api = LearningPlanApi(
+        ApiClient(
+          httpClient: client,
+          endpoints: ApiEndpoints(
+            origin: baseUrl,
+            websocketOrigin: baseUrl.replaceFirst('http', 'ws'),
+          ),
+        ),
+      );
 
   @override
   bool get isRemote => true;
 
   @override
-  Future<JsonMap> loadProfile() async => _decode(
-    await _client.get(Uri.parse('$baseUrl/api/learners/local/profile')),
-  );
+  Future<JsonMap> loadProfile() => _translate(_api.loadProfile);
 
   @override
-  Future<PlpDocument> loadPlan() async {
-    final response = await _client.get(Uri.parse('$baseUrl/api/plp/active'));
-    final json = _decode(response);
+  Future<PlpDocument> loadPlan() => _translate(() async {
+    final json = await _api.loadPlan();
     return PlpDocument.fromJson(json);
-  }
+  });
 
   @override
-  Future<JsonMap> saveProfile(JsonMap profile) async => _decode(
-    await _client.put(
-      Uri.parse('$baseUrl/api/learners/local/profile'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(profile),
-    ),
-  );
+  Future<JsonMap> saveProfile(JsonMap profile) =>
+      _translate(() => _api.saveProfile(profile));
 
   @override
-  Future<String> generatePlan() async {
-    final json = _decode(
-      await _client.post(Uri.parse('$baseUrl/api/plp/generations')),
-    );
-    return json['job_id'] as String;
-  }
-
-  @override
-  Future<JsonMap> generationStatus(String jobId) async => _decode(
-    await _client.get(Uri.parse('$baseUrl/api/plp/generations/$jobId')),
-  );
-
-  @override
-  Future<JsonMap> latestGeneration() async => _decode(
-    await _client.get(Uri.parse('$baseUrl/api/plp/generations/latest')),
-  );
-
-  @override
-  Future<JsonMap> retryGeneration(String jobId) async => _decode(
-    await _client.post(Uri.parse('$baseUrl/api/plp/generations/$jobId/retry')),
-  );
-
-  @override
-  Future<void> resetLearner() async {
-    _decode(await _client.delete(Uri.parse('$baseUrl/api/learners/local')));
-  }
-
-  @override
-  Future<PlpAttemptResult> submitAttempt(
-    String activityId,
-    JsonMap response,
-  ) async => PlpAttemptResult.fromJson(
-    _decode(
-      await _client.post(
-        Uri.parse('$baseUrl/api/plp/activities/$activityId/attempts'),
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode(response),
-      ),
-    ),
-  );
-
-  JsonMap _decode(http.Response response) {
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } catch (_) {
-      decoded = null;
-    }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final detail = decoded is Map<String, dynamic>
-          ? decoded['detail']?.toString()
-          : null;
-      throw PlpApiException(
-        response.statusCode,
-        detail ?? 'PLP request failed (${response.statusCode}).',
+  Future<String> generatePlan() => _translate(() async {
+    final json = await _api.generate();
+    final jobId = json['job_id'];
+    if (jobId is! String) {
+      throw const PlpFormatException(
+        'generation response must include a job_id',
       );
     }
-    if (decoded is! Map<String, dynamic>) {
-      throw const PlpFormatException('backend response must be a JSON object');
+    return jobId;
+  });
+
+  @override
+  Future<JsonMap> generationStatus(String jobId) =>
+      _translate(() => _api.generationStatus(jobId));
+
+  @override
+  Future<JsonMap> latestGeneration() => _translate(_api.latestGeneration);
+
+  @override
+  Future<JsonMap> retryGeneration(String jobId) =>
+      _translate(() => _api.retryGeneration(jobId));
+
+  @override
+  Future<void> resetLearner() => _translate(_api.resetLearner);
+
+  @override
+  Future<PlpAttemptResult> submitAttempt(String activityId, JsonMap response) =>
+      _translate(() async {
+        final json = await _api.submitAttempt(activityId, response);
+        return PlpAttemptResult.fromJson(json);
+      });
+
+  Future<T> _translate<T>(Future<T> Function() request) async {
+    try {
+      return await request();
+    } on ApiException catch (error) {
+      final statusCode = error.statusCode;
+      if (statusCode == null) {
+        throw PlpFormatException(error.message);
+      }
+      throw PlpApiException(statusCode, error.message);
     }
-    return decoded;
   }
 }

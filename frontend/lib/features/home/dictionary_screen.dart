@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 import '../../core/theme/app_colors.dart';
 
 typedef WordLookup = Future<Map<String, dynamic>> Function(String word);
@@ -62,7 +62,9 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
       _entry = null;
       _error = null;
     });
-    final result = await (widget.lookup ?? ApiService.lookupWord)(word);
+    final result =
+        await (widget.lookup ??
+            AppDependencies.instance.languageTools.lookupWord)(word);
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -87,7 +89,11 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
       _error = null;
     });
     try {
-      await _audioPlayer.play(UrlSource(ApiService.ttsUri(word).toString()));
+      await _audioPlayer.play(
+        UrlSource(
+          AppDependencies.instance.languageTools.ttsUri(word).toString(),
+        ),
+      );
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Could not play the pronunciation.');

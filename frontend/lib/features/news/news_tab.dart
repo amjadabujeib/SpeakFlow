@@ -4,7 +4,7 @@ import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../shared/widgets/dictionary_popup.dart';
 import '../../core/providers/app_state.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 
 // ---------------------------------------------------------------------------
 // Data model
@@ -233,11 +233,12 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     });
     _playerSlideController.reverse();
     try {
-      final payload = await (widget.loader ?? ApiService.getNews)(
-        category: category.value,
-        level: level,
-        page: page,
-      );
+      final payload =
+          await (widget.loader ?? AppDependencies.instance.news.articles)(
+            category: category.value,
+            level: level,
+            page: page,
+          );
       if (!mounted || request != _requestSerial) return;
       final rawArticles = payload['articles'] as List<dynamic>? ?? const [];
       final articles = rawArticles

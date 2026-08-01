@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
-import '../../core/services/api_service.dart';
 import '../../core/theme/app_colors.dart';
+import 'application/auth_controller.dart';
 
-class AuthScreen extends StatefulWidget {
+class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
 
   bool _createAccount = false;
-  bool _loading = false;
   bool _obscurePassword = true;
-  String? _error;
 
   @override
   void dispose() {
@@ -32,60 +31,45 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submit() async {
-    if (_loading || !_formKey.currentState!.validate()) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      if (_createAccount) {
-        await ApiService.signUp(
-          displayName: _name.text.trim(),
-          email: _email.text.trim(),
-          password: _password.text,
-        );
-      } else {
-        await ApiService.signIn(
-          email: _email.text.trim(),
-          password: _password.text,
-        );
-      }
-      if (mounted) context.go('/start');
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error.toString().replaceFirst('Bad state: ', ''));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    if (ref.read(authControllerProvider).isLoading ||
+        !_formKey.currentState!.validate()) {
+      return;
     }
+    final controller = ref.read(authControllerProvider.notifier);
+    final success = _createAccount
+        ? await controller.signUp(
+            displayName: _name.text.trim(),
+            email: _email.text.trim(),
+            password: _password.text,
+          )
+        : await controller.signIn(
+            email: _email.text.trim(),
+            password: _password.text,
+          );
+    if (success && mounted) context.go('/start');
   }
 
   Future<void> _guest() async {
-    if (_loading) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await ApiService.continueAsGuest();
-      if (mounted) context.go('/start');
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error.toString().replaceFirst('Bad state: ', ''));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    if (ref.read(authControllerProvider).isLoading) return;
+    final success = await ref
+        .read(authControllerProvider.notifier)
+        .continueAsGuest();
+    if (success && mounted) context.go('/start');
   }
 
   void _setMode(bool create) {
-    if (_loading) return;
-    setState(() {
-      _createAccount = create;
-      _error = null;
-    });
+    if (ref.read(authControllerProvider).isLoading) return;
+    ref.read(authControllerProvider.notifier).reset();
+    setState(() => _createAccount = create);
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authControllerProvider);
+    final loading = authState.isLoading;
+    final error = authState.hasError
+        ? authState.error.toString().replaceFirst('Bad state: ', '')
+        : null;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -220,10 +204,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           ? 'Use at least 8 characters.'
                           : null,
                     ),
-                    if (_error != null) ...[
+                    if (error != null) ...[
                       const SizedBox(height: 12),
                       Text(
-                        _error!,
+                        error,
                         style: GoogleFonts.inter(
                           color: AppColors.error,
                           fontSize: 12,
@@ -232,14 +216,14 @@ class _AuthScreenState extends State<AuthScreen> {
                     ],
                     const SizedBox(height: 18),
                     FilledButton(
-                      onPressed: _loading ? null : _submit,
+                      onPressed: loading ? null : _submit,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(13),
                         ),
                       ),
-                      child: _loading
+                      child: loading
                           ? const SizedBox.square(
                               dimension: 19,
                               child: CircularProgressIndicator(
@@ -268,7 +252,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 14),
                     OutlinedButton.icon(
-                      onPressed: _loading ? null : _guest,
+                      onPressed: loading ? null : _guest,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: const BorderSide(color: AppColors.border),

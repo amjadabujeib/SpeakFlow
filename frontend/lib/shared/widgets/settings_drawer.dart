@@ -5,7 +5,7 @@ import 'package:speakflow/core/theme/local_fonts.dart';
 import '../../core/auth/auth_session_store.dart';
 import '../../core/data/phoneme_progress_store.dart';
 import '../../core/data/practice_word_store.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/providers/app_state.dart';
 import '../../plp/plp_repository.dart';
@@ -172,9 +172,9 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
         await PracticeWordStore.instance.clear();
         await PhonemeProgressStore.instance.clear();
       }
-      await ApiService.signOut();
+      await AppDependencies.instance.auth.signOut();
     } catch (_) {
-      // ApiService still removes the local session when the backend is
+      // AuthApi still removes the local session when the backend is
       // unreachable, so the learner is never left stuck in an account.
     }
     if (!mounted) return;

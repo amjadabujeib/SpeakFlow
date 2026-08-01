@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/auth/auth_session_store.dart';
+import '../../app/providers.dart';
 import '../../core/theme/app_colors.dart';
 import 'auth_screen.dart';
 
-class AuthGate extends StatefulWidget {
+class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
+  ConsumerState<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<AuthGate> {
+class _AuthGateState extends ConsumerState<AuthGate> {
   bool _checking = true;
   String? _error;
 
@@ -23,8 +24,8 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _resolve() async {
-    final store = AuthSessionStore.instance;
-    if (!store.hasSession) {
+    final auth = ref.read(authApiProvider);
+    if (!auth.hasSession) {
       setState(() {
         _checking = false;
         _error = null;
@@ -36,7 +37,7 @@ class _AuthGateState extends State<AuthGate> {
       _error = null;
     });
     try {
-      final valid = await store.validate();
+      final valid = await auth.validateSession();
       if (!mounted) return;
       if (valid) {
         context.go('/start');
@@ -89,7 +90,7 @@ class _AuthGateState extends State<AuthGate> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    await AuthSessionStore.instance.clear();
+                    await ref.read(authApiProvider).forgetSession();
                     if (mounted) {
                       setState(() {
                         _checking = false;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 import 'roleplay_confidence_transcript.dart';
 import 'roleplay_message_bubbles.dart';
 import 'roleplay_models.dart';
@@ -47,7 +47,8 @@ class _RoleplayHistoryScreenState extends State<RoleplayHistoryScreen> {
       });
     }
     try {
-      final loader = widget.loader ?? ApiService.getRoleplayTranscript;
+      final loader =
+          widget.loader ?? AppDependencies.instance.roleplay.transcript;
       final value = await loader(widget.args.clientSessionId);
       final transcript = RoleplayTranscript.fromJson(value);
       if (!transcript.readOnly) {

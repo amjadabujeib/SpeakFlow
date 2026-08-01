@@ -1,5 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'core/auth/auth_session_store.dart';
@@ -20,7 +21,7 @@ Future<void> main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const SpeakFlowApp());
+  runApp(const ProviderScope(child: SpeakFlowApp()));
 }
 
 class SpeakFlowApp extends StatefulWidget {

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
+import 'data/roleplay_api.dart';
 import 'roleplay_models.dart';
 
 const _background = Color(0xFF090E1A);
@@ -16,14 +18,14 @@ const _text = Color(0xFFF1F5FF);
 const _muted = Color(0xFF8896B0);
 const _border = Color(0xFF263550);
 
-class ChatTab extends StatefulWidget {
+class ChatTab extends ConsumerStatefulWidget {
   const ChatTab({super.key});
 
   @override
-  State<ChatTab> createState() => _ChatTabState();
+  ConsumerState<ChatTab> createState() => _ChatTabState();
 }
 
-class _ChatTabState extends State<ChatTab> {
+class _ChatTabState extends ConsumerState<ChatTab> {
   List<RoleplayScenario> _scenarios = const [];
   List<Map<String, dynamic>> _history = const [];
   final Set<String> _expanded = {'Travel'};
@@ -44,9 +46,10 @@ class _ChatTabState extends State<ChatTab> {
       });
     }
     try {
+      final roleplay = ref.read(roleplayApiProvider);
       final results = await Future.wait([
-        ApiService.getRoleplayScenarios(),
-        ApiService.getRoleplayHistory(),
+        roleplay.scenarios(),
+        roleplay.history(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -87,7 +90,8 @@ class _ChatTabState extends State<ChatTab> {
     final scenario = await showDialog<RoleplayScenario>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _ScenarioBuilderDialog(),
+      builder: (_) =>
+          _ScenarioBuilderDialog(api: ref.read(roleplayApiProvider)),
     );
     if (!mounted || scenario == null) return;
     setState(() {
@@ -509,7 +513,9 @@ class _HistorySheet extends StatelessWidget {
 }
 
 class _ScenarioBuilderDialog extends StatefulWidget {
-  const _ScenarioBuilderDialog();
+  final RoleplayApi api;
+
+  const _ScenarioBuilderDialog({required this.api});
 
   @override
   State<_ScenarioBuilderDialog> createState() => _ScenarioBuilderDialogState();
@@ -576,7 +582,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
       _error = null;
     });
     try {
-      final value = await ApiService.generateRoleplayScenarioDraft(
+      final value = await widget.api.generateScenarioDraft(
         category: _category.text.trim(),
         title: _title.text.trim(),
         description: _description.text.trim(),
@@ -663,7 +669,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
       _error = null;
     });
     try {
-      final value = await ApiService.createRoleplayScenario(
+      final value = await widget.api.createScenario(
         category: _category.text.trim(),
         icon: _icon,
         title: _title.text.trim(),

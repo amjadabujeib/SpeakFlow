@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 
 typedef DictionaryLookup = Future<Map<String, dynamic>> Function(String word);
 
@@ -12,12 +12,12 @@ class DictionaryPopup extends StatelessWidget {
   final Offset tapPosition;
   final DictionaryLookup lookup;
 
-  const DictionaryPopup({
+  DictionaryPopup({
     super.key,
     required this.word,
     required this.tapPosition,
     DictionaryLookup? lookup,
-  }) : lookup = lookup ?? ApiService.lookupWord;
+  }) : lookup = lookup ?? AppDependencies.instance.languageTools.lookupWord;
 
   static void show(BuildContext context, String word, Offset globalPosition) {
     showDialog(

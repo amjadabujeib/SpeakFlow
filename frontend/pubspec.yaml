@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.6.3
+  flutter_riverpod: ^3.3.2
   flutter_animate: ^4.5.2
   http: ^1.2.2
   web_socket_channel: ^3.0.2

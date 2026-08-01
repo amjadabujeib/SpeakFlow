@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,7 +14,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 import '../../core/auth/auth_session_store.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
+import '../../core/network/api_config.dart';
 import '../../core/data/practice_word_store.dart';
 import 'roleplay_chat_components.dart';
 import 'roleplay_chat_message.dart';
@@ -33,16 +35,16 @@ const _text = Color(0xFFF1F5FF);
 const _muted = Color(0xFF8896B0);
 const _border = Color(0xFF263550);
 
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   final RoleplayScenario scenario;
 
   const ChatScreen({super.key, required this.scenario});
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen>
+class _ChatScreenState extends ConsumerState<ChatScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -88,10 +90,12 @@ class _ChatScreenState extends State<ChatScreen>
       });
     }
     try {
-      final started = await ApiService.startRoleplaySession(
-        clientSessionId: _clientSessionId,
-        scenarioId: widget.scenario.id,
-      );
+      final started = await ref
+          .read(roleplayApiProvider)
+          .startSession(
+            clientSessionId: _clientSessionId,
+            scenarioId: widget.scenario.id,
+          );
       _sessionCreated = true;
       _objectiveState = Map<String, dynamic>.from(
         started['objective_state'] as Map? ?? {},
@@ -106,7 +110,7 @@ class _ChatScreenState extends State<ChatScreen>
           ),
         );
       final channel = IOWebSocketChannel.connect(
-        Uri.parse('${ApiService.wsUrl}/ws/chat'),
+        ApiConfig.websocketUri('/chat/ws'),
         headers: {
           'Authorization':
               'Bearer ${AuthSessionStore.instance.accessToken ?? ''}',
@@ -488,10 +492,12 @@ class _ChatScreenState extends State<ChatScreen>
   Future<void> _finalize(String reason) async {
     setState(() => _ending = true);
     try {
-      final result = await ApiService.finalizeRoleplaySession(
-        clientSessionId: _clientSessionId,
-        endedReason: reason,
-      );
+      final result = await ref
+          .read(roleplayApiProvider)
+          .finalizeSession(
+            clientSessionId: _clientSessionId,
+            endedReason: reason,
+          );
       if (!mounted) return;
       final session = Map<String, dynamic>.from(
         result['session'] as Map? ?? {},
@@ -526,10 +532,12 @@ class _ChatScreenState extends State<ChatScreen>
   Future<void> _retryStart() async {
     if (_sessionCreated) {
       try {
-        await ApiService.finalizeRoleplaySession(
-          clientSessionId: _clientSessionId,
-          endedReason: 'disconnected',
-        );
+        await ref
+            .read(roleplayApiProvider)
+            .finalizeSession(
+              clientSessionId: _clientSessionId,
+              endedReason: 'disconnected',
+            );
       } catch (_) {
         // The server also finalizes an unexpectedly disconnected socket.
       }

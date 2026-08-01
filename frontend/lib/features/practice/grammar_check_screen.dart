@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 
 // ─────────────────────── Colors ──────────────────────────────
 const _background = Color(0xFF090E1A);
@@ -48,7 +48,9 @@ class _GrammarCheckScreenState extends State<GrammarCheckScreen> {
       _errorMsg = null;
     });
 
-    final result = await ApiService.checkGrammar(text);
+    final result = await AppDependencies.instance.languageTools.checkGrammar(
+      text,
+    );
 
     if (!mounted) return;
 

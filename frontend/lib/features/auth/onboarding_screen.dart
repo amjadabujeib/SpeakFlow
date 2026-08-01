@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../core/services/api_service.dart';
+import '../../app/providers.dart';
 
 // Color constants
 const _background = Color(0xFF090E1A);
@@ -54,14 +55,14 @@ const _languages = ['Arabic', 'Kurdish', 'Turkish', 'French', 'Spanish'];
 
 // ─── Main Screen ───────────────────────────────────────────────────────────
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0; // 0..3
   final int _totalSteps = 4;
 
@@ -108,13 +109,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     } else {
       setState(() => _submitting = true);
       try {
-        await ApiService.saveLearnerProfile({
+        final learningPlan = ref.read(learningPlanApiProvider);
+        await learningPlan.saveProfile({
           'cefr_level': _selectedLevel,
           'native_language': _selectedLanguage,
           'learning_goals': [_selectedGoal],
           'interests': _selectedInterests.take(3).toList(),
         });
-        await ApiService.generateLearningPlan();
+        await learningPlan.generate();
         if (mounted) context.go('/loading');
       } catch (error) {
         if (!mounted) return;
