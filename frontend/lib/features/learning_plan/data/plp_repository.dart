@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/network/api_client.dart' show ApiClient, ApiException;
-import '../core/network/api_config.dart';
-import '../features/learning_plan/data/learning_plan_api.dart';
-import 'plp_models.dart';
+import '../../../core/network/api_client.dart' show ApiClient, ApiException;
+import '../../../core/network/api_config.dart';
+import '../domain/plp_models.dart';
+import 'learning_plan_api.dart';
 
 abstract class PlpRepository {
   const PlpRepository();
@@ -41,7 +41,7 @@ abstract class PlpRepository {
 }
 
 class AssetPlpRepository extends PlpRepository {
-  static const defaultAssetPath = 'assets/mock/plp_plan_v1.json';
+  static const defaultAssetPath = 'assets/mock/plp_plan.json';
 
   final AssetBundle? bundle;
   final String assetPath;
@@ -120,20 +120,27 @@ class PlpAttemptResult {
 }
 
 class HttpPlpRepository extends PlpRepository {
-  static const defaultBaseUrl = 'http://127.0.0.1:8000';
+  static final LearningPlanApi _sharedApi = LearningPlanApi(ApiClient());
+
   final String baseUrl;
   final LearningPlanApi _api;
 
-  HttpPlpRepository({this.baseUrl = defaultBaseUrl, http.Client? client})
-    : _api = LearningPlanApi(
-        ApiClient(
-          httpClient: client,
-          endpoints: ApiEndpoints(
-            origin: baseUrl,
-            websocketOrigin: baseUrl.replaceFirst('http', 'ws'),
-          ),
-        ),
-      );
+  HttpPlpRepository({String? baseUrl, http.Client? client})
+    : baseUrl = baseUrl ?? ApiConfig.origin,
+      _api = baseUrl == null && client == null
+          ? _sharedApi
+          : LearningPlanApi(
+              ApiClient(
+                httpClient: client,
+                endpoints: ApiEndpoints(
+                  origin: baseUrl ?? ApiConfig.origin,
+                  websocketOrigin: (baseUrl ?? ApiConfig.origin).replaceFirst(
+                    'http',
+                    'ws',
+                  ),
+                ),
+              ),
+            );
 
   @override
   bool get isRemote => true;

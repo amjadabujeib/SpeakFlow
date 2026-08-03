@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_colors.dart';
-import 'plp_repository.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/providers/app_state.dart';
+import '../data/plp_repository.dart';
 
 class PlpOnboardingScreen extends StatefulWidget {
   final PlpRepository repository;
@@ -70,9 +71,14 @@ class _PlpOnboardingScreenState extends State<PlpOnboardingScreen> {
         'native_language': _nativeLanguage,
         'learning_goals': _goals.toList(),
         'interests': _interests.toList(),
+        'timezone_offset_minutes': DateTime.now().timeZoneOffset.inMinutes,
       });
       final jobId = await widget.repository.generatePlan();
       if (!mounted) return;
+      AppState()
+        ..setMotherTongue(_nativeLanguage)
+        ..setCefrLevel(_level)
+        ..setInterests(_interests.toList());
       final callback = widget.onGenerationStarted;
       if (callback != null) {
         callback(jobId);

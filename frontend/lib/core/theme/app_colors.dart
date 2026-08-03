@@ -25,17 +25,6 @@ class AppColors {
   static const Color success = Color(0xFF22C55E);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
-  static const Color info = Color(0xFF3B82F6);
-
-  // Pronunciation scores
-  static const Color pronGood = Color(0xFF22C55E);
-  static const Color pronMid = Color(0xFFF59E0B);
-  static const Color pronBad = Color(0xFFEF4444);
-
-  // Streak
-  static const Color streakActive = Color(0xFFFF6B35);
-  static const Color streakInactive = Color(0xFF1E2D45);
-
   // Border
   static const Color border = Color(0xFF1E2D45);
   static const Color borderLight = Color(0xFF2A3A55);
@@ -49,24 +38,4 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-
-  static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF1E2D45), Color(0xFF152038)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient backgroundGradient = LinearGradient(
-    colors: [Color(0xFF090E1A), Color(0xFF0D1526)],
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-  );
-
-  // Light theme equivalents
-  static const Color lightBackground = Color(0xFFF0F4FF);
-  static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceElevated = Color(0xFFEEF2FF);
-  static const Color lightTextPrimary = Color(0xFF111827);
-  static const Color lightTextSecondary = Color(0xFF4B5563);
-  static const Color lightBorder = Color(0xFFDDE3F0);
 }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/providers/app_state.dart';
+import '../data/plp_repository.dart';
 import 'onboarding_screen.dart';
-import 'plp_repository.dart';
 
 class FirstRunGate extends StatefulWidget {
   final PlpRepository? repository;
@@ -34,7 +35,7 @@ class _FirstRunGateState extends State<FirstRunGate> {
     try {
       await _repository.loadPlan();
       if (!mounted) return;
-      _enterApp();
+      await _enterAppWithProfile();
     } on PlpApiException catch (error) {
       if (!mounted) return;
       if (error.statusCode != 404) {
@@ -45,9 +46,26 @@ class _FirstRunGateState extends State<FirstRunGate> {
         return;
       }
       try {
-        await _repository.latestGeneration();
+        final generation = await _repository.latestGeneration();
         if (!mounted) return;
-        _enterApp();
+        final status = generation['status']?.toString();
+        const activeStatuses = {
+          'queued',
+          'generating_week_one',
+          'generating_future_weeks',
+          'waiting_for_model',
+          'generating_initial',
+          'generating_next',
+          'idle',
+        };
+        if (!activeStatuses.contains(status)) {
+          setState(() {
+            _state = _GateState.failed;
+            _error = 'The latest plan generation ended with status "$status".';
+          });
+          return;
+        }
+        await _enterAppWithProfile();
       } on PlpApiException catch (latestError) {
         if (!mounted) return;
         if (latestError.statusCode == 404) {
@@ -66,6 +84,10 @@ class _FirstRunGateState extends State<FirstRunGate> {
         });
       }
     } catch (error) {
+      if (error is UnsupportedError) {
+        _enterApp();
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _state = _GateState.failed;
@@ -79,6 +101,34 @@ class _FirstRunGateState extends State<FirstRunGate> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.go('/home');
     });
+  }
+
+  Future<void> _enterAppWithProfile() async {
+    try {
+      final profile = await _repository.loadProfile();
+      final state = AppState();
+      final language = profile['native_language']?.toString();
+      final level = profile['cefr_level']?.toString();
+      final interests = (profile['interests'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+      if (language != null) state.setMotherTongue(language);
+      if (level != null) state.setCefrLevel(level);
+      if (interests.isNotEmpty) state.setInterests(interests);
+    } catch (error) {
+      if (error is UnsupportedError) {
+        _enterApp();
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _state = _GateState.failed;
+        _error = error;
+      });
+      return;
+    }
+    _enterApp();
   }
 
   @override

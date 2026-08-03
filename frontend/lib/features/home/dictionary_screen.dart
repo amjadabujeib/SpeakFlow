@@ -24,6 +24,8 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
   final _controller = TextEditingController();
   final _audioPlayer = AudioPlayer();
   StreamSubscription<void>? _playerCompleteSubscription;
+  int _searchRequest = 0;
+  int _audioRequest = 0;
   Map<String, dynamic>? _entry;
   String? _error;
   bool _loading = false;
@@ -39,6 +41,8 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
 
   @override
   void dispose() {
+    _searchRequest++;
+    _audioRequest++;
     _controller.dispose();
     _playerCompleteSubscription?.cancel();
     _audioPlayer.dispose();
@@ -46,13 +50,20 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
   }
 
   Future<void> _search() async {
+    final request = ++_searchRequest;
     final word = _controller.text.trim();
     if (word.isEmpty) {
-      setState(() => _error = 'Enter an English word.');
+      setState(() {
+        _loading = false;
+        _error = 'Enter an English word.';
+      });
       return;
     }
     if (!RegExp(r"^[A-Za-z]+(?:['’-][A-Za-z]+)*$").hasMatch(word)) {
-      setState(() => _error = 'Enter one English word.');
+      setState(() {
+        _loading = false;
+        _error = 'Enter one English word.';
+      });
       return;
     }
 
@@ -65,7 +76,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
     final result =
         await (widget.lookup ??
             AppDependencies.instance.languageTools.lookupWord)(word);
-    if (!mounted) return;
+    if (!mounted || request != _searchRequest) return;
     setState(() {
       _loading = false;
       if (result['error'] != null) {
@@ -80,25 +91,28 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
     final word = _entry?['word']?.toString().trim() ?? '';
     if (word.isEmpty) return;
     if (_playing) {
+      _audioRequest++;
       await _audioPlayer.stop();
       if (mounted) setState(() => _playing = false);
       return;
     }
+    final request = ++_audioRequest;
     setState(() {
       _playing = true;
       _error = null;
     });
     try {
-      await _audioPlayer.play(
-        UrlSource(
-          AppDependencies.instance.languageTools.ttsUri(word).toString(),
-        ),
-      );
+      final audio = await AppDependencies.instance.languageTools
+          .synthesizeSpeech(word);
+      if (!mounted || request != _audioRequest) return;
+      await _audioPlayer.play(BytesSource(audio));
     } catch (_) {
-      if (mounted) {
+      if (mounted && request == _audioRequest) {
         setState(() => _error = 'Could not play the pronunciation.');
       }
-      if (mounted) setState(() => _playing = false);
+      if (mounted && request == _audioRequest) {
+        setState(() => _playing = false);
+      }
     }
   }
 

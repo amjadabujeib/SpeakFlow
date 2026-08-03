@@ -6,37 +6,37 @@ class LearningPlanApi {
   const LearningPlanApi(this._client);
 
   Future<JsonMap> loadProfile() async =>
-      _client.decodeMap(await _client.get('/me/profile'));
+      _client.decodeMap(await _client.get('/learners/local/profile'));
 
   Future<JsonMap> loadPlan() async =>
-      _client.decodeMap(await _client.get('/learning-plan/active'));
+      _client.decodeMap(await _client.get('/plp/active'));
 
-  Future<JsonMap> saveProfile(JsonMap profile) async =>
-      _client.decodeMap(await _client.put('/me/profile', body: profile));
+  Future<JsonMap> saveProfile(JsonMap profile) async => _client.decodeMap(
+    await _client.put('/learners/local/profile', body: profile),
+  );
 
   Future<JsonMap> generate() async => _client.decodeMap(
-    await _client.post('/learning-plan/generations'),
+    await _client.post('/plp/generations'),
     successStatuses: const {200, 202},
   );
 
   Future<JsonMap> generationStatus(String jobId) async =>
-      _client.decodeMap(await _client.get('/learning-plan/generations/$jobId'));
+      _client.decodeMap(await _client.get('/plp/generations/$jobId'));
 
   Future<JsonMap> latestGeneration() async =>
-      _client.decodeMap(await _client.get('/learning-plan/generations/latest'));
+      _client.decodeMap(await _client.get('/plp/generations/latest'));
 
-  Future<JsonMap> retryGeneration(String jobId) async => _client.decodeMap(
-    await _client.post('/learning-plan/generations/$jobId/retry'),
-  );
+  Future<JsonMap> retryGeneration(String jobId) async =>
+      _client.decodeMap(await _client.post('/plp/generations/$jobId/retry'));
 
   Future<void> resetLearner() async {
-    _client.decodeMap(await _client.delete('/me/learning-data'));
+    _client.decodeMap(await _client.delete('/learners/local'));
   }
 
   Future<JsonMap> submitAttempt(String activityId, JsonMap response) async =>
       _client.decodeMap(
         await _client.post(
-          '/learning-plan/activities/$activityId/attempts',
+          '/plp/activities/$activityId/attempts',
           body: response,
         ),
       );

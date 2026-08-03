@@ -4,8 +4,8 @@ import 'package:speakflow/core/theme/local_fonts.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/providers/app_state.dart';
-import '../../plp/learning_plan_screen.dart';
-import '../../plp/plp_repository.dart';
+import '../learning_plan/data/plp_repository.dart';
+import '../learning_plan/presentation/learning_plan_screen.dart';
 
 class HomeTab extends StatelessWidget {
   final PlpRepository? repository;

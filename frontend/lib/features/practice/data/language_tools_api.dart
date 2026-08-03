@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../../core/network/api_client.dart';
 
 class LanguageToolsApi {
@@ -27,5 +29,18 @@ class LanguageToolsApi {
     }
   }
 
-  Uri ttsUri(String text) => _client.uri('/tts', query: {'text': text});
+  Future<Uint8List> synthesizeSpeech(String text) async {
+    final response = await _client.post(
+      '/tts',
+      body: {'text': text},
+      requestTimeout: ApiClient.longTimeout,
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _client.errorDetail(response),
+        statusCode: response.statusCode,
+      );
+    }
+    return response.bodyBytes;
+  }
 }

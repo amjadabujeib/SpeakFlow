@@ -9,7 +9,7 @@ class ApiConfig {
     'SPEAKFLOW_WS_URL',
     defaultValue: 'ws://localhost:8000',
   );
-  static const String apiPrefix = '/api/v1';
+  static const String apiPrefix = '/api';
 
   static const ApiEndpoints endpoints = ApiEndpoints(
     origin: origin,
@@ -20,7 +20,7 @@ class ApiConfig {
   static Uri uri(String path, {Map<String, String>? queryParameters}) =>
       endpoints.uri(path, queryParameters: queryParameters);
 
-  static Uri websocketUri(String path) => endpoints.websocketUri(path);
+  static Uri websocketUri() => endpoints.websocketUri('/ws/chat');
 }
 
 /// Injectable endpoint configuration for production code and isolated tests.
@@ -32,12 +32,26 @@ class ApiEndpoints {
   const ApiEndpoints({
     required this.origin,
     required this.websocketOrigin,
-    this.apiPrefix = '/api/v1',
+    this.apiPrefix = '/api',
   });
 
-  Uri uri(String path, {Map<String, String>? queryParameters}) => Uri.parse(
-    '$origin$apiPrefix$path',
-  ).replace(queryParameters: queryParameters);
+  String _join(String base, String path) {
+    final cleanBase = base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
+    final cleanPrefix = apiPrefix.startsWith('/') ? apiPrefix : '/$apiPrefix';
+    final cleanPath = path.startsWith('/') ? path : '/$path';
+    return '$cleanBase$cleanPrefix$cleanPath';
+  }
 
-  Uri websocketUri(String path) => Uri.parse('$websocketOrigin$apiPrefix$path');
+  Uri uri(String path, {Map<String, String>? queryParameters}) =>
+      Uri.parse(_join(origin, path)).replace(queryParameters: queryParameters);
+
+  Uri websocketUri(String path) {
+    final cleanOrigin = websocketOrigin.endsWith('/')
+        ? websocketOrigin.substring(0, websocketOrigin.length - 1)
+        : websocketOrigin;
+    final cleanPath = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$cleanOrigin$cleanPath');
+  }
 }

@@ -403,14 +403,3 @@ class _LivePopupCardState extends State<_LivePopupCard> {
     );
   }
 }
-
-// Mixin to add long-press dictionary feature to any text
-mixin DictionaryMixin {
-  void showDictionaryForWord(
-    BuildContext context,
-    String word,
-    Offset position,
-  ) {
-    DictionaryPopup.show(context, word, position);
-  }
-}

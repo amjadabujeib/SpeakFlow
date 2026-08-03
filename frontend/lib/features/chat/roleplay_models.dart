@@ -53,7 +53,6 @@ class RoleplayRubric {
 
 class RoleplayScenario {
   final String id;
-  final int version;
   final String category;
   final String icon;
   final String title;
@@ -69,7 +68,6 @@ class RoleplayScenario {
 
   const RoleplayScenario({
     required this.id,
-    required this.version,
     required this.category,
     required this.icon,
     required this.title,
@@ -90,7 +88,6 @@ class RoleplayScenario {
     final rawRubric = json['evaluation_rubric'];
     return RoleplayScenario(
       id: json['id']?.toString() ?? '',
-      version: (json['version'] as num?)?.round() ?? 1,
       category: json['category']?.toString() ?? 'Other',
       icon: json['icon']?.toString() ?? '🎭',
       title: json['title']?.toString() ?? 'Roleplay',

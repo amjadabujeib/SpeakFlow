@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:speakflow/plp/plp_models.dart';
-import 'package:speakflow/plp/plp_repository.dart';
+import 'package:speakflow/features/learning_plan/data/plp_repository.dart';
+import 'package:speakflow/features/learning_plan/domain/plp_models.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -51,11 +51,11 @@ void main() {
     expect(result.xpAwarded, 35);
   });
 
-  group('PLP v1 contract', () {
+  group('PLP contract', () {
     test('loads the complete mock plan with derived progress', () async {
       final document = await const AssetPlpRepository().loadPlan();
 
-      expect(document.schemaVersion, 1);
+      expect(document.formatRevision, 1);
       expect(document.plan.weeks, hasLength(4));
       expect(document.lessons, hasLength(16));
       expect(
@@ -332,7 +332,7 @@ void main() {
                 )
                 as Map<String, dynamic>;
         final plan = raw['plan'] as Map<String, dynamic>;
-        plan['architecture'] = 'mission_v3';
+        plan['architecture'] = 'weekly_mission';
         final firstWeek = (plan['weeks'] as List).first as Map<String, dynamic>;
         firstWeek['mission'] = {
           'mission': {
@@ -367,7 +367,7 @@ void main() {
         final lesson = document.lessons.first;
         final activity = lesson.content!.activities.first;
 
-        expect(document.plan.architecture, 'mission_v3');
+        expect(document.plan.architecture, 'weekly_mission');
         expect(mission.title, 'Resolve a familiar technology problem');
         expect(
           mission.canDo,

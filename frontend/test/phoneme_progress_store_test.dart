@@ -52,7 +52,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: MainShell(child: Center(child: Text('Shell child'))),
+        home: MainShell(
+          location: '/home',
+          child: Center(child: Text('Shell child')),
+        ),
       ),
     );
     await tester.pump();
@@ -72,11 +75,11 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: MainShell(child: SizedBox())),
+      const MaterialApp(
+        home: MainShell(location: '/home', child: SizedBox()),
+      ),
     );
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-
-    expect(() => AppState().setTab(1), returnsNormally);
-    AppState().setTab(0);
+    expect(() => AppState().setMotherTongue('Arabic'), returnsNormally);
   });
 }

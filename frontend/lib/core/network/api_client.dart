@@ -120,4 +120,6 @@ class ApiClient {
     }
     return 'Server error: ${response.statusCode}';
   }
+
+  void close() => httpClient.close();
 }

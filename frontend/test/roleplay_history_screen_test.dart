@@ -16,7 +16,6 @@ void main() {
       },
       'scenario': {
         'id': 'airport_check_in',
-        'version': 1,
         'category': 'Travel',
         'icon': '✈️',
         'title': 'Airport Check-in',
@@ -113,7 +112,6 @@ void main() {
       'session': {'duration_seconds': 125},
       'scenario': {
         'id': 'airport_check_in',
-        'version': 1,
         'category': 'Travel',
         'icon': '✈️',
         'title': 'Airport Check-in',

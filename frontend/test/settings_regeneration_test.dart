@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:speakflow/core/providers/app_state.dart';
-import 'package:speakflow/plp/plp_models.dart';
-import 'package:speakflow/plp/plp_repository.dart';
+import 'package:speakflow/features/learning_plan/data/plp_repository.dart';
+import 'package:speakflow/features/learning_plan/domain/plp_models.dart';
 import 'package:speakflow/shared/widgets/settings_drawer.dart';
 
 class _SettingsRepository extends PlpRepository {

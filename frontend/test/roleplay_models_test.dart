@@ -6,7 +6,6 @@ void main() {
   test('roleplay scenario parses the server contract', () {
     final scenario = RoleplayScenario.fromJson({
       'id': 'hotel_check_in',
-      'version': 2,
       'category': 'Travel',
       'icon': '🏨',
       'title': 'Hotel Check-in',
@@ -37,7 +36,6 @@ void main() {
     });
 
     expect(scenario.id, 'hotel_check_in');
-    expect(scenario.version, 2);
     expect(scenario.objectives.single.weight, 2);
     expect(scenario.targetLanguage.single, 'I have a reservation');
     expect(scenario.evaluationRubric.single.id, 'booking_clarity');
@@ -129,7 +127,6 @@ void main() {
       },
       'scenario': {
         'id': 'airport_check_in',
-        'version': 1,
         'category': 'Travel',
         'icon': '✈️',
         'title': 'Airport Check-in',

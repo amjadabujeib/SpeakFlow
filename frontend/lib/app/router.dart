@@ -1,5 +1,6 @@
 // lib/app/router.dart
 import 'package:go_router/go_router.dart';
+import '../core/auth/auth_session_store.dart';
 import '../features/auth/onboarding_screen.dart';
 import '../features/auth/loading_screen.dart';
 import '../features/auth/auth_gate.dart';
@@ -16,13 +17,21 @@ import '../features/news/news_tab.dart';
 import '../features/home/dictionary_screen.dart';
 import '../features/practice/grammar_check_screen.dart';
 import '../features/practice/pronunciation_screen.dart';
-import '../plp/learning_plan_screen.dart';
-import '../plp/onboarding_screen.dart' as plp_onboarding;
-import '../plp/plp_repository.dart';
-import '../plp/first_run_gate.dart';
+import '../features/learning_plan/data/plp_repository.dart';
+import '../features/learning_plan/presentation/first_run_gate.dart';
+import '../features/learning_plan/presentation/learning_plan_screen.dart';
+import '../features/learning_plan/presentation/onboarding_screen.dart'
+    as plp_onboarding;
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/auth',
+  refreshListenable: AuthSessionStore.instance,
+  redirect: (context, state) {
+    final hasSession = AuthSessionStore.instance.hasSession;
+    final onAuth = state.matchedLocation == '/auth';
+    if (!hasSession && !onAuth) return '/auth';
+    return null;
+  },
   routes: [
     GoRoute(path: '/auth', builder: (_, __) => const AuthGate()),
     GoRoute(path: '/start', builder: (_, __) => const FirstRunGate()),
@@ -31,7 +40,8 @@ final GoRouter appRouter = GoRouter(
 
     // Main app shell with bottom nav
     ShellRoute(
-      builder: (context, state, child) => MainShell(child: child),
+      builder: (context, state, child) =>
+          MainShell(location: state.uri.path, child: child),
       routes: [
         GoRoute(path: '/home', builder: (_, __) => const HomeTab()),
         GoRoute(path: '/practice', builder: (_, __) => const PracticeTab()),

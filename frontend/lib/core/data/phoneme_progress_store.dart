@@ -46,6 +46,7 @@ class PhonemeProgressStore extends ChangeNotifier {
 
   final Map<String, PhonemeProgress> _entries = {};
   Future<void>? _loadFuture;
+  Future<void> _persistTail = Future<void>.value();
   String? _loadedUserId;
 
   List<PhonemeProgress> get entries {
@@ -65,7 +66,8 @@ class PhonemeProgressStore extends ChangeNotifier {
 
   Future<void> load() {
     _activateCurrentUser();
-    return _loadFuture ??= _loadFromDisk();
+    final owner = _loadedUserId!;
+    return _loadFuture ??= _loadFromDisk(owner);
   }
 
   void _activateCurrentUser() {
@@ -77,7 +79,10 @@ class PhonemeProgressStore extends ChangeNotifier {
   }
 
   Future<int> recordAnalysis(List<dynamic> analysis) async {
+    _activateCurrentUser();
+    final owner = _loadedUserId!;
     await load();
+    if (_loadedUserId != owner) return 0;
     var recorded = 0;
     final now = DateTime.now();
     for (final raw in analysis.whereType<Map>()) {
@@ -118,23 +123,27 @@ class PhonemeProgressStore extends ChangeNotifier {
 
   Future<void> clear() async {
     _activateCurrentUser();
+    final owner = _loadedUserId!;
     _entries.clear();
     _loadFuture = Future<void>.value();
     notifyListeners();
     try {
-      final file = await _storageFile().timeout(const Duration(seconds: 2));
+      final file = await _storageFile(
+        owner,
+      ).timeout(const Duration(seconds: 2));
       if (await file.exists()) await file.delete();
     } catch (_) {
       // The in-memory map has still been cleared.
     }
   }
 
-  Future<void> _loadFromDisk() async {
+  Future<void> _loadFromDisk(String owner) async {
     try {
-      final file = await _storageFile();
+      final file = await _storageFile(owner);
       if (!await file.exists()) return;
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! List) return;
+      if (_loadedUserId != owner) return;
       _entries
         ..clear()
         ..addEntries(
@@ -153,25 +162,38 @@ class PhonemeProgressStore extends ChangeNotifier {
     }
   }
 
-  Future<void> _persist() async {
-    try {
-      final file = await _storageFile();
-      await file.writeAsString(
-        jsonEncode(_entries.values.map((item) => item.toJson()).toList()),
-        flush: true,
-      );
-    } catch (_) {
-      // A storage failure must not invalidate a pronunciation result.
-    }
+  Future<void> _persist() {
+    final owner = _loadedUserId ?? 'anonymous';
+    final payload = jsonEncode(
+      _entries.values.map((item) => item.toJson()).toList(),
+    );
+    _persistTail = _persistTail.then((_) async {
+      try {
+        final file = await _storageFile(owner);
+        await _writeAtomically(file, payload);
+      } catch (_) {
+        // A storage failure must not invalidate a pronunciation result.
+      }
+    });
+    return _persistTail;
   }
 
-  Future<File> _storageFile() async {
+  Future<File> _storageFile(String userId) async {
     final directory = await getApplicationDocumentsDirectory();
-    final owner = (_loadedUserId ?? 'anonymous').replaceAll(
-      RegExp(r'[^a-zA-Z0-9_-]'),
-      '_',
-    );
+    final owner = userId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
     return File('${directory.path}/phoneme_progress_$owner.json');
+  }
+
+  Future<void> _writeAtomically(File file, String payload) async {
+    final temporary = File(
+      '${file.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
+    try {
+      await temporary.writeAsString(payload, flush: true);
+      await temporary.rename(file.path);
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 
   String _normalizeSymbol(String value) {

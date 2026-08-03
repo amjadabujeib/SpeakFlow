@@ -94,6 +94,7 @@ class PracticeWordStore extends ChangeNotifier {
 
   final List<PracticeWord> _words = [];
   Future<void>? _loadFuture;
+  Future<void> _persistTail = Future<void>.value();
   String? _loadedUserId;
 
   List<PracticeWord> get words {
@@ -119,7 +120,8 @@ class PracticeWordStore extends ChangeNotifier {
 
   Future<void> load() {
     _activateCurrentUser();
-    return _loadFuture ??= _loadFromDisk();
+    final owner = _loadedUserId!;
+    return _loadFuture ??= _loadFromDisk(owner);
   }
 
   void _activateCurrentUser() {
@@ -130,12 +132,13 @@ class PracticeWordStore extends ChangeNotifier {
     _loadFuture = null;
   }
 
-  Future<void> _loadFromDisk() async {
+  Future<void> _loadFromDisk(String owner) async {
     try {
-      final file = await _storageFile();
+      final file = await _storageFile(owner);
       if (!await file.exists()) return;
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! List) return;
+      if (_loadedUserId != owner) return;
       _words
         ..clear()
         ..addAll(
@@ -157,7 +160,10 @@ class PracticeWordStore extends ChangeNotifier {
     required String scenario,
     required Iterable<PracticeWordCandidate> candidates,
   }) async {
+    _activateCurrentUser();
+    final owner = _loadedUserId!;
     await load();
+    if (_loadedUserId != owner) return 0;
     final now = DateTime.now();
     var changed = 0;
 
@@ -201,7 +207,10 @@ class PracticeWordStore extends ChangeNotifier {
   }
 
   Future<void> addManualWord(String value) async {
+    _activateCurrentUser();
+    final owner = _loadedUserId!;
     await load();
+    if (_loadedUserId != owner) return;
     final word = _cleanWord(value);
     if (word.isEmpty) return;
 
@@ -224,7 +233,10 @@ class PracticeWordStore extends ChangeNotifier {
   }
 
   Future<void> markMastered(PracticeWord word) async {
+    _activateCurrentUser();
+    final owner = _loadedUserId!;
     await load();
+    if (_loadedUserId != owner) return;
     final index = _words.indexWhere(
       (item) => _key(item.word) == _key(word.word),
     );
@@ -235,7 +247,10 @@ class PracticeWordStore extends ChangeNotifier {
   }
 
   Future<void> removeWord(PracticeWord word) async {
+    _activateCurrentUser();
+    final owner = _loadedUserId!;
     await load();
+    if (_loadedUserId != owner) return;
     _words.removeWhere((item) => _key(item.word) == _key(word.word));
     notifyListeners();
     await _persist();
@@ -243,35 +258,49 @@ class PracticeWordStore extends ChangeNotifier {
 
   Future<void> clear() async {
     _activateCurrentUser();
+    final owner = _loadedUserId!;
     _words.clear();
     _loadFuture = Future<void>.value();
     notifyListeners();
     try {
-      final file = await _storageFile().timeout(const Duration(seconds: 2));
+      final file = await _storageFile(
+        owner,
+      ).timeout(const Duration(seconds: 2));
       if (await file.exists()) await file.delete();
     } catch (_) {
       // The in-memory queue has still been cleared.
     }
   }
 
-  Future<File> _storageFile() async {
+  Future<File> _storageFile(String userId) async {
     final directory = await getApplicationDocumentsDirectory();
-    final owner = (_loadedUserId ?? 'anonymous').replaceAll(
-      RegExp(r'[^a-zA-Z0-9_-]'),
-      '_',
-    );
+    final owner = userId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
     return File('${directory.path}/practice_words_$owner.json');
   }
 
-  Future<void> _persist() async {
+  Future<void> _persist() {
+    final owner = _loadedUserId ?? 'anonymous';
+    final payload = jsonEncode(_words.map((item) => item.toJson()).toList());
+    _persistTail = _persistTail.then((_) async {
+      try {
+        final file = await _storageFile(owner);
+        await _writeAtomically(file, payload);
+      } catch (_) {
+        // Keep the in-memory queue working if persistence fails.
+      }
+    });
+    return _persistTail;
+  }
+
+  Future<void> _writeAtomically(File file, String payload) async {
+    final temporary = File(
+      '${file.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
     try {
-      final file = await _storageFile();
-      await file.writeAsString(
-        jsonEncode(_words.map((item) => item.toJson()).toList()),
-        flush: true,
-      );
-    } catch (_) {
-      // Keep the in-memory queue working if persistence fails.
+      await temporary.writeAsString(payload, flush: true);
+      await temporary.rename(file.path);
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
     }
   }
 

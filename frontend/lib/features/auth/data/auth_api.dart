@@ -66,11 +66,14 @@ class AuthApi {
   }
 
   Future<void> signOut() async {
-    try {
-      await _client.post('/auth/signout');
-    } finally {
-      await _sessionStore.clear();
+    final response = await _client.post('/auth/signout');
+    if (response.statusCode != 204 && response.statusCode != 401) {
+      throw ApiException(
+        _client.errorDetail(response),
+        statusCode: response.statusCode,
+      );
     }
+    await _sessionStore.clear();
   }
 
   Future<void> forgetSession() => _sessionStore.clear();
