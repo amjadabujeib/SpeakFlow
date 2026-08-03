@@ -30,12 +30,10 @@
       "slope": 0.5103154724084941
     }
   },
-  "data": "/home/amjad/english_learning_app_data/l2_arctic_arabic_ctc",
   "deployment": {
     "reason": "speaker-held-out blending selected aggregated phone evidence; the insertion-aware word candidate did not improve validation",
     "word_model_used": false
   },
-  "feature_root": "/home/amjad/english_learning_app_data/l2_arctic_arabic_ctc/ctc_gop_output",
   "feature_schema": {
     "phone_context": 400,
     "phone_error_legacy": 131,

@@ -1,28 +1,96 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Iterable
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.routing import APIRoute, APIWebSocketRoute
 
+from speakflow import APP_RELEASE
 from speakflow.features.auth.application.errors import (
     AuthInvalidCredentialsError,
     AuthUnavailableError,
 )
 from plp.identity import bind_user
 from speakflow.features.auth.infrastructure.service import auth_service
+from .rate_limit import ProcessSharedRateLimiter as _RateLimiter
 
 
 _PUBLIC_API_PATHS = {
     "/api/tts",
     "/api/news/image",
-    "/api/v1/tts",
-    "/api/v1/news/image",
 }
+_UPLOAD_BODY_LIMIT = 16 * 1024 * 1024
+
+
+class _RequestBodyTooLarge(Exception):
+    pass
+
+
+class _BodyLimitMiddleware:
+    """Reject oversized streamed bodies before multipart parsing completes."""
+
+    def __init__(self, app: Any, *, maximum_bytes: int) -> None:
+        self.app = app
+        self.maximum_bytes = maximum_bytes
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        path = str(scope.get("path", ""))
+        if path not in {"/api/pronunciation", "/api/speaking/transcribe"}:
+            await self.app(scope, receive, send)
+            return
+
+        response_started = False
+        received = 0
+
+        async def limited_receive() -> dict:
+            nonlocal received
+            message = await receive()
+            if message.get("type") == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.maximum_bytes:
+                    raise _RequestBodyTooLarge
+            return message
+
+        async def tracked_send(message: dict) -> None:
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, tracked_send)
+        except _RequestBodyTooLarge:
+            if response_started:
+                raise
+            response = JSONResponse(
+                status_code=413,
+                content={"detail": "request body is too large"},
+            )
+            await response(scope, receive, send)
+
+
+_rate_limiter = _RateLimiter()
+
+
+def _rate_limit_rule(method: str, path: str) -> tuple[int, int] | None:
+    if path == "/api/auth/signin":
+        return 10, 60
+    if path in {"/api/auth/signup", "/api/auth/guest"}:
+        return 6, 60
+    if path == "/api/tts":
+        return (30, 60) if method == "GET" else (60, 60)
+    if path == "/api/news/image":
+        return 30, 60
+    if path in {"/api/pronunciation", "/api/speaking/transcribe"}:
+        return 20, 60
+    return None
 
 
 def create_application(
@@ -38,14 +106,29 @@ def create_application(
 
     application = FastAPI(
         title="SpeakFlow Backend",
-        version="2.0.0",
+        version=APP_RELEASE,
         lifespan=lifespan,
     )
+    configured_origin_text = os.environ.get("CORS_ORIGINS")
+    configured_origins = [
+        value.strip()
+        for value in (configured_origin_text or "").split(",")
+        if value.strip()
+    ]
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=configured_origins,
+        allow_origin_regex=(
+            None
+            if configured_origin_text is not None
+            else r"^http://(localhost|127\.0\.0\.1)(:\d+)?$"
+        ),
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    application.add_middleware(
+        _BodyLimitMiddleware,
+        maximum_bytes=_UPLOAD_BODY_LIMIT,
     )
 
     for router in routers:
@@ -54,12 +137,45 @@ def create_application(
     @application.middleware("http")
     async def authenticated_user_context(request: Request, call_next):
         path = request.url.path
+        if path in {"/api/pronunciation", "/api/speaking/transcribe"}:
+            content_length = request.headers.get("content-length")
+            if content_length is not None:
+                try:
+                    declared_size = int(content_length)
+                except ValueError:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"detail": "invalid Content-Length header"},
+                    )
+                if declared_size < 0:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"detail": "invalid Content-Length header"},
+                    )
+                if declared_size > _UPLOAD_BODY_LIMIT:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "request body is too large"},
+                    )
+        rule = _rate_limit_rule(request.method, path)
+        if rule is not None:
+            client_host = request.client.host if request.client else "unknown"
+            retry_after = _rate_limiter.retry_after(
+                f"{client_host}:{request.method}:{path}",
+                limit=rule[0],
+                window=rule[1],
+            )
+            if retry_after:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "too many requests; try again shortly"},
+                    headers={"Retry-After": str(retry_after)},
+                )
         if (
             request.method == "OPTIONS"
             or not path.startswith("/api/")
             or path.startswith("/api/auth/")
-            or path.startswith("/api/v1/auth/")
-            or path in _PUBLIC_API_PATHS
+            or (request.method == "GET" and path in _PUBLIC_API_PATHS)
         ):
             return await call_next(request)
 
@@ -80,87 +196,3 @@ def create_application(
             return await call_next(request)
 
     return application
-
-
-def mount_versioned_aliases(application: FastAPI) -> None:
-    """Expose current feature contracts under ``/api/v1`` during migration.
-
-    Existing unversioned endpoints remain available until the Flutter client
-    completes its coordinated migration. Calling this function is idempotent.
-    """
-
-    routes = tuple(application.routes)
-    existing_paths = {route.path for route in routes}
-    existing_http_routes = {
-        (route.path, frozenset(route.methods or ()))
-        for route in routes
-        if isinstance(route, APIRoute)
-    }
-    http_routes = tuple(route for route in routes if isinstance(route, APIRoute))
-    for route in routes:
-        if isinstance(route, APIRoute) and route.path.startswith("/api/"):
-            alias = f"/api/v1/{route.path.removeprefix('/api/')}"
-            route_key = (alias, frozenset(route.methods or ()))
-            if route_key in existing_http_routes:
-                continue
-            _clone_http_route(application, route, alias, f"v1_{route.name}")
-            existing_paths.add(alias)
-            existing_http_routes.add(route_key)
-        elif isinstance(route, APIWebSocketRoute) and route.path == "/ws/chat":
-            alias = "/api/v1/chat/ws"
-            if alias not in existing_paths:
-                application.add_api_websocket_route(
-                    alias,
-                    route.endpoint,
-                    name="v1_chat_websocket",
-                )
-                existing_paths.add(alias)
-
-    canonical_paths = [
-        ("/api/learners/local/profile", "/api/v1/me/profile"),
-        ("/api/learners/local", "/api/v1/me/learning-data"),
-        (
-            "/api/onboarding/options",
-            "/api/v1/learning-plan/onboarding-options",
-        ),
-    ]
-    canonical_paths.extend(
-        (
-            route.path,
-            f"/api/v1/learning-plan/{route.path.removeprefix('/api/plp/')}",
-        )
-        for route in http_routes
-        if route.path.startswith("/api/plp/")
-    )
-    for source, alias in canonical_paths:
-        for route in (item for item in http_routes if item.path == source):
-            route_key = (alias, frozenset(route.methods or ()))
-            if route_key in existing_http_routes:
-                continue
-            name = alias.removeprefix("/api/v1/").replace("/", "_")
-            _clone_http_route(application, route, alias, f"v1_{name}_{route.name}")
-            existing_paths.add(alias)
-            existing_http_routes.add(route_key)
-
-
-def _clone_http_route(
-    application: FastAPI,
-    route: APIRoute,
-    path: str,
-    name: str,
-) -> None:
-    methods = set(route.methods or ()) - {"HEAD", "OPTIONS"}
-    application.add_api_route(
-        path,
-        route.endpoint,
-        methods=methods,
-        response_model=route.response_model,
-        status_code=route.status_code,
-        tags=route.tags,
-        summary=route.summary,
-        description=route.description,
-        response_description=route.response_description,
-        responses=route.responses,
-        deprecated=route.deprecated,
-        name=name,
-    )

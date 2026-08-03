@@ -32,7 +32,6 @@ class RoleplaySession(Base):
     scenario_id: Mapped[str | None] = mapped_column(
         String(100), nullable=True, index=True
     )
-    scenario_version: Mapped[int] = mapped_column(Integer, default=1)
     cefr_level: Mapped[str] = mapped_column(String(2), default="B1")
     scenario: Mapped[str] = mapped_column(String(160), index=True)
     scenario_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict)
@@ -51,7 +50,6 @@ class RoleplaySession(Base):
     review_words: Mapped[list] = mapped_column(JSONB, default=list)
     objective_state: Mapped[dict] = mapped_column(JSONB, default=dict)
     evaluation: Mapped[dict] = mapped_column(JSONB, default=dict)
-    evaluation_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
     ended_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -134,7 +132,6 @@ class RoleplayScenario(Base):
     title: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(String(500))
     definition: Mapped[dict] = mapped_column(JSONB)
-    version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
     )

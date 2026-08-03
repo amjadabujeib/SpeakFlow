@@ -12,7 +12,7 @@ SOURCE = {
     "author": "English Tutor project curriculum team",
     "locator": "repo:backend/plp/seed.py",
     "license": "Project-authored",
-    "version": "2026.07.26-mission-v3-depth1",
+    "version": "2026.07.26",
 }
 
 

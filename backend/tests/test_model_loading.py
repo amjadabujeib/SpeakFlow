@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-import main
+from speakflow.runtime import models as model_runtime
 
 
 class LocalModelLoadingTests(unittest.TestCase):
@@ -12,23 +12,23 @@ class LocalModelLoadingTests(unittest.TestCase):
         loaded_aligner = object()
         metadata = {"language": "en"}
         with (
-            patch.object(main, "WHISPER_AVAILABLE", True),
-            patch.object(main, "whisper_model", None),
-            patch.object(main, "align_model", None),
-            patch.object(main, "align_metadata", None),
-            patch.object(main, "_failed_model_loads", set()),
+            patch.object(model_runtime, "WHISPER_AVAILABLE", True),
+            patch.object(model_runtime, "whisper_model", None),
+            patch.object(model_runtime, "align_model", None),
+            patch.object(model_runtime, "align_metadata", None),
+            patch.object(model_runtime, "_failed_model_loads", set()),
             patch.object(
-                main.whisperx,
+                model_runtime.whisperx,
                 "load_model",
                 return_value=loaded_whisper,
             ) as load_model,
             patch.object(
-                main.whisperx,
+                model_runtime.whisperx,
                 "load_align_model",
                 return_value=(loaded_aligner, metadata),
             ),
         ):
-            self.assertTrue(main._load_whisper_models())
+            self.assertTrue(model_runtime._load_whisper_models())
 
         self.assertEqual(load_model.call_args.kwargs["language"], "en")
         self.assertTrue(load_model.call_args.kwargs["local_files_only"])

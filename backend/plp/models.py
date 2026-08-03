@@ -5,7 +5,6 @@ from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    ARRAY,
     Boolean,
     CheckConstraint,
     Date,
@@ -17,7 +16,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -48,6 +46,7 @@ class LearnerProfile(Base):
     accent_preference: Mapped[str] = mapped_column(String(24))
     days_per_week: Mapped[int] = mapped_column(Integer)
     minutes_per_day: Mapped[int] = mapped_column(Integer)
+    timezone_offset_minutes: Mapped[int] = mapped_column(Integer, default=0)
     pronunciation_priorities: Mapped[list] = mapped_column(JSONB, default=list)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -56,6 +55,10 @@ class LearnerProfile(Base):
     __table_args__ = (
         CheckConstraint("days_per_week BETWEEN 2 AND 7"),
         CheckConstraint("minutes_per_day BETWEEN 10 AND 60"),
+        CheckConstraint(
+            "timezone_offset_minutes BETWEEN -720 AND 840",
+            name="ck_learner_profiles_timezone_offset",
+        ),
     )
 
 
@@ -167,7 +170,9 @@ class LearningPlan(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
     )
     active_revision_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -185,6 +190,10 @@ class LearningPlan(Base):
         DateTime(timezone=True), default=utc_now
     )
 
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_learning_plans_user_id"),
+    )
+
 
 class PlanRevision(Base):
     __tablename__ = "plan_revisions"
@@ -199,8 +208,6 @@ class PlanRevision(Base):
     status: Mapped[str] = mapped_column(String(40), index=True)
     learner_snapshot: Mapped[dict] = mapped_column(JSONB)
     outline: Mapped[dict] = mapped_column(JSONB)
-    planner_version: Mapped[str] = mapped_column(String(80))
-    generator_version: Mapped[str] = mapped_column(String(80))
     generation_reason: Mapped[str] = mapped_column(String(80), default="onboarding")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
@@ -300,6 +307,9 @@ class ActivityAttempt(Base):
         UUID(as_uuid=True), ForeignKey("plan_lessons.id", ondelete="CASCADE"), index=True
     )
     activity_id: Mapped[str] = mapped_column(String(100))
+    submission_id: Mapped[str | None] = mapped_column(
+        String(180), nullable=True
+    )
     response: Mapped[dict] = mapped_column(JSONB)
     score: Mapped[int] = mapped_column(Integer)
     correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -308,6 +318,11 @@ class ActivityAttempt(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "submission_id",
+            name="uq_activity_attempts_user_submission",
+        ),
         CheckConstraint(
             "score BETWEEN 0 AND 100",
             name="ck_activity_attempts_score",

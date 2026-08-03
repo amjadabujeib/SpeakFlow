@@ -5,10 +5,11 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from ctc_gop import CTC_GOP_FEATURE_DIM, CtcGopResult
-from ctc_pronunciation_service import SCORING_METHOD, Wav2Vec2GoptScorer
-from pronunciation_features import GOP_FEATURE_DIM
-from pronunciation_core import (
+from speakflow.runtime.pronunciation.gop import CTC_GOP_FEATURE_DIM, CtcGopResult
+from speakflow.runtime.pronunciation.scoring import SCORING_METHOD
+from speakflow.runtime.pronunciation.service import Wav2Vec2GoptScorer
+from speakflow.runtime.pronunciation.features import GOP_FEATURE_DIM
+from speakflow.runtime.pronunciation.core import (
     CmuCanonicalizer,
     GOPT_PHONE_TO_ID,
     PronunciationScoringError,

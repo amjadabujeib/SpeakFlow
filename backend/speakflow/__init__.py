@@ -5,4 +5,6 @@ application ports and presentation adapters, while :mod:`speakflow.app` is the
 only composition root.
 """
 
-__all__ = ["app", "features", "shared"]
+APP_RELEASE = "1.0.0"
+
+__all__ = ["APP_RELEASE", "app", "features", "shared"]

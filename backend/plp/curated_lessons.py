@@ -1,8 +1,5 @@
 from __future__ import annotations
-
 import copy
-
-
 SCORED_TYPES = {
     "multiple_choice",
     "fill_blank",
@@ -10,24 +7,18 @@ SCORED_TYPES = {
     "listening_comprehension",
     "sentence_order",
 }
-
-
 def get_curated_template(level: str, domain: str) -> dict:
     """Return a reviewed lesson object whose answer logic is human-authored."""
     try:
         return copy.deepcopy(_CURATED_LESSONS[level][domain])
     except KeyError as exc:
         raise ValueError(f"no curated lesson exists for {level} {domain}") from exc
-
-
 def assessment_candidates(template: dict) -> list[dict]:
     return [
         copy.deepcopy(item)
         for item in template["activities"]
         if item["type"] in SCORED_TYPES
     ]
-
-
 def template_search_text(template: dict) -> str:
     parts = [template["title"], template["description"], template["intro"]]
     for item in template["activities"]:
@@ -44,8 +35,6 @@ def template_search_text(template: dict) -> str:
         if question:
             parts.append(question["prompt"])
     return "\n".join(parts)
-
-
 def _choice(
     prompt: str,
     correct: str,
@@ -66,16 +55,12 @@ def _choice(
         "correct_option_id": options[correct_position]["id"],
         "explanation": explanation,
     }
-
-
 def _fill(prompt: str, answer: str, explanation: str) -> dict:
     return {
         "prompt": prompt,
         "accepted_answers": [answer],
         "explanation": explanation,
     }
-
-
 def _order(prompt: str, chunks: tuple[str, ...], explanation: str) -> dict:
     correct_ids = [f"chunk_{index + 1}" for index in range(len(chunks))]
     # The visible chips must not start in the answer order.
@@ -89,8 +74,6 @@ def _order(prompt: str, chunks: tuple[str, ...], explanation: str) -> dict:
         "correct_order": correct_ids,
         "explanation": explanation,
     }
-
-
 def _concept(explanation: str, key_points: list[str], examples: list[str]) -> dict:
     return {
         "explanation": explanation,
@@ -98,8 +81,6 @@ def _concept(explanation: str, key_points: list[str], examples: list[str]) -> di
         "examples": examples,
         "native_hint": None,
     }
-
-
 def _vocab(
     *,
     title: str,
@@ -118,8 +99,6 @@ def _vocab(
             {"type": "fill_blank", "data": recall},
         ],
     }
-
-
 def _card(
     word: str,
     part_of_speech: str,
@@ -137,8 +116,6 @@ def _card(
         "collocations": collocations,
         "native_hint": None,
     }
-
-
 def _skill_lesson(
     title: str,
     description: str,
@@ -151,8 +128,6 @@ def _skill_lesson(
         "intro": intro,
         "activities": activities,
     }
-
-
 def _nested(
     kind: str,
     *,
@@ -169,8 +144,6 @@ def _nested(
     else:
         data.update({"transcript": text, "voice": "american"})
     return {"type": kind, "data": data}
-
-
 _CURATED_LESSONS = {
     "A1": {
         "vocabulary": _vocab(
@@ -335,8 +308,6 @@ _CURATED_LESSONS["A2"] = {
         ],
     ),
 }
-
-
 _CURATED_LESSONS["B1"] = {
     "vocabulary": _vocab(
         title="Project problem-solving vocabulary",
@@ -415,8 +386,6 @@ _CURATED_LESSONS["B1"] = {
         ],
     ),
 }
-
-
 _CURATED_LESSONS["B2"] = {
     "vocabulary": _vocab(
         title="Precise professional stance",
@@ -495,8 +464,6 @@ _CURATED_LESSONS["B2"] = {
         ],
     ),
 }
-
-
 def validate_catalog_shape() -> None:
     expected_domains = {
         "vocabulary", "grammar", "reading", "listening",
@@ -505,6 +472,4 @@ def validate_catalog_shape() -> None:
     for level, domains in _CURATED_LESSONS.items():
         if set(domains) != expected_domains:
             raise ValueError(f"curated {level} domains are incomplete")
-
-
 validate_catalog_shape()

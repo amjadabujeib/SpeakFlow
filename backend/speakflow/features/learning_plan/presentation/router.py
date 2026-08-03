@@ -13,7 +13,7 @@ from plp.schemas import (
     LearnerProfileInput,
     LearnerProfileView,
     LocalLearnerResetResult,
-    PlpDocumentV2,
+    PlpDocument,
 )
 from plp.service import (
     PlpConflictError,
@@ -104,8 +104,8 @@ def retry_generation(job_id: UUID) -> GenerationView:
     return _call(plp_service.retry_generation, job_id)
 
 
-@router.get("/plp/active", response_model=PlpDocumentV2)
-def active_plan() -> PlpDocumentV2:
+@router.get("/plp/active", response_model=PlpDocument)
+def active_plan() -> PlpDocument:
     return _call(plp_service.get_active_document)
 
 

@@ -46,7 +46,7 @@ def audit_generation(*, domain: str, level: str) -> dict:
         )
         return {
             "provider": generator.provider,
-            "model_version": generated["generator_version"],
+            "model": generator.model_name,
             "domain": domain,
             "level": level,
             "duration_seconds": round(time.monotonic() - started, 1),

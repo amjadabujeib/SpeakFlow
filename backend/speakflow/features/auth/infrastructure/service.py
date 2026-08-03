@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from plp.database import session_scope
 from speakflow.features.auth.infrastructure.models import AuthSession, User
 from speakflow.features.auth.application.ports import (
+    AuthenticationPort,
     GuestSessionCommand,
     SignInCommand,
     SignUpCommand,
@@ -27,6 +28,7 @@ from speakflow.features.auth.application.errors import (
 
 SESSION_DAYS = 30
 GUEST_SESSION_DAYS = 7
+MAX_ACTIVE_SESSIONS = 5
 SCRYPT_N = 2**14
 SCRYPT_R = 8
 SCRYPT_P = 1
@@ -125,18 +127,15 @@ class AuthService:
         now = _utc_now()
         try:
             with session_scope() as session:
-                auth_session = session.scalar(
-                    select(AuthSession).where(
+                user = session.scalar(
+                    select(User)
+                    .join(AuthSession, AuthSession.user_id == User.id)
+                    .where(
                         AuthSession.token_hash == token_hash,
                         AuthSession.revoked_at.is_(None),
                         AuthSession.expires_at > now,
                     )
                 )
-                if auth_session is None:
-                    raise AuthInvalidCredentialsError(
-                        "authentication session is invalid or expired"
-                    )
-                user = session.get(User, auth_session.user_id)
                 if user is None:
                     raise AuthInvalidCredentialsError(
                         "authentication session is invalid or expired"
@@ -171,8 +170,36 @@ class AuthService:
 
 
 def _create_session(session, user: User, lifetime_days: int) -> IssuedSession:
+    now = _utc_now()
+    session.execute(
+        select(User.id).where(User.id == user.id).with_for_update()
+    )
+    session.execute(
+        delete(AuthSession).where(
+            AuthSession.user_id == user.id,
+            (AuthSession.revoked_at.is_not(None)) | (AuthSession.expires_at <= now),
+        )
+    )
+    retained_ids = session.scalars(
+        select(AuthSession.id)
+        .where(
+            AuthSession.user_id == user.id,
+            AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > now,
+        )
+        .order_by(AuthSession.created_at.desc())
+        .limit(MAX_ACTIVE_SESSIONS - 1)
+    ).all()
+    session.execute(
+        delete(AuthSession).where(
+            AuthSession.user_id == user.id,
+            AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > now,
+            AuthSession.id.not_in(retained_ids),
+        )
+    )
     raw_token = secrets.token_urlsafe(48)
-    expires_at = _utc_now() + timedelta(days=lifetime_days)
+    expires_at = now + timedelta(days=lifetime_days)
     session.add(
         AuthSession(
             user_id=user.id,
@@ -249,4 +276,4 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-auth_service = AuthService()
+auth_service: AuthenticationPort = AuthService()

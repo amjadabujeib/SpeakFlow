@@ -276,15 +276,8 @@ class GOPTNoPhn(nn.Module):
         # batch size
         B = x.shape[0]
 
-        # phn_one_hot in shape [batch_size, seq_len, feat_dim]
-        phn_one_hot =  torch.nn.functional.one_hot(phn.long()+1, num_classes=40).float()
-        # phn_embed in shape [batch_size, seq_len, embed_dim]
-        phn_embed = self.phn_proj(phn_one_hot)
-
         if self.embed_dim != self.input_dim:
             x = self.in_proj(x)
-
-        #x = x + phn_embed
 
         cls_token1 = self.cls_token1.expand(B, -1, -1)
         cls_token2 = self.cls_token2.expand(B, -1, -1)

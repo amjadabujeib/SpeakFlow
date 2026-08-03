@@ -4,7 +4,7 @@ import argparse
 import hashlib
 import json
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 
 from .config import OLLAMA_EMBED_MODEL
 from .database import get_engine, session_scope

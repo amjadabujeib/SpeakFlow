@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import torch
 
-from ctc_gop import (
+from speakflow.runtime.pronunciation.gop import (
     CTC_GOP_FEATURE_DIM,
     CTC_PHONE_TO_ID,
     alignment_free_ctc_gop,

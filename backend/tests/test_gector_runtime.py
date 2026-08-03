@@ -3,13 +3,12 @@ from __future__ import annotations
 import tempfile
 import unittest
 import warnings
-from pathlib import Path
 from unittest.mock import patch
 
 import torch
 from gector.configuration import GECToRConfig
 
-import gector_runtime
+from speakflow.runtime import grammar_model as gector_runtime
 
 
 TINY_ROBERTA_ARCHITECTURE = {

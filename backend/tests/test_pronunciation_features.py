@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from pronunciation_features import (
+from speakflow.runtime.pronunciation.features import (
     GOP_FEATURE_DIM,
     PHONE_CONTEXT_FEATURE_DIM,
     WORD_CONTEXT_FEATURE_DIM,

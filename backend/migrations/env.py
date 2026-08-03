@@ -6,7 +6,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from runtime_env import load_runtime_env
+from speakflow.config import load_runtime_env
 from plp.models import Base
 
 

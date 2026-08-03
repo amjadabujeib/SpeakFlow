@@ -131,7 +131,6 @@
   },
   "training": {
     "best_validation_loss": 0.15590477585792542,
-    "data": "/home/amjad/english_learning_app_data/speechocean762_ctc",
     "epochs": 100,
     "held_out_test": {
       "accuracy_pcc": 0.7246124670467191,

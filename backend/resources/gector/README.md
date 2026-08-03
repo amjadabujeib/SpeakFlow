@@ -9,5 +9,6 @@ The runtime model weights are intentionally not stored here or committed to
 Git. The private model bundle installs `gotutiyan/gector-roberta-base-5k`
 under `backend/.models/gector/gector-roberta-base-5k/` as described in the
 root README. Its safetensors checkpoint contains the complete RoBERTa encoder
-and correction heads. `backend/gector_runtime.py` constructs the architecture
-locally, so no separate `roberta-base` checkout or runtime download is needed.
+and correction heads. `backend/speakflow/runtime/grammar_model.py` constructs
+the architecture locally, so no separate `roberta-base` checkout or runtime
+download is needed.

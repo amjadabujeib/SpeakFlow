@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import model_bundle
+from tools import model_bundle
 
 
 class ModelBundlePathTests(unittest.TestCase):
@@ -28,6 +28,13 @@ class ModelBundlePathTests(unittest.TestCase):
         self.assertIn(
             "backend/.models/curriculum/rag-curriculum-v1.zip",
             destinations,
+        )
+
+    def test_repository_owned_metadata_is_not_a_private_bundle_asset(self):
+        destinations = {asset.destination for asset in model_bundle.local_assets()}
+        self.assertTrue(model_bundle.REPOSITORY_OWNED_MODEL_FILES)
+        self.assertTrue(
+            model_bundle.REPOSITORY_OWNED_MODEL_FILES.isdisjoint(destinations)
         )
 
     def test_manifest_rejects_parent_traversal(self):

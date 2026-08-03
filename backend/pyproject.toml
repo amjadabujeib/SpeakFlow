@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "speakflow-backend"
-version = "2.0.0"
+version = "1.0.0"
 description = "SpeakFlow modular-monolith FastAPI backend"
 requires-python = ">=3.12,<3.13"
 dynamic = ["dependencies"]
@@ -13,23 +13,11 @@ dynamic = ["dependencies"]
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools]
-py-modules = [
-  "auth_api",
-  "auth_service",
-  "ctc_gop",
-  "ctc_pronunciation_service",
-  "gector_runtime",
-  "main",
-  "model_bundle",
-  "pronunciation_core",
-  "pronunciation_features",
-  "roleplay_engine",
-  "runtime_env",
-]
+py-modules = ["main"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["speakflow*", "plp*", "gopt_models*"]
+include = ["speakflow*", "plp*", "gopt_models*", "tools*"]
 
 [tool.ruff]
 line-length = 88

@@ -5,14 +5,17 @@ import uuid
 
 from sqlalchemy import select
 
-from auth_service import (
+from speakflow.features.auth.application.errors import (
     AuthEmailConflictError,
     AuthInvalidCredentialsError,
+)
+from speakflow.features.auth.infrastructure.service import (
     auth_service,
 )
 from plp.database import session_scope
 from plp.identity import bind_user
 from plp.models import GenerationJob, LearningPlan, PlanLesson, PlanRevision, User
+from speakflow.features.auth.infrastructure.models import AuthSession
 from plp.schemas import (
     GuestSessionInput,
     LearnerProfileInput,
@@ -89,6 +92,42 @@ class AuthenticationLifecycleTests(unittest.TestCase):
         with session_scope() as session:
             self.assertIsNone(session.get(User, guest.user.user_id))
 
+    def test_registered_accounts_keep_only_five_active_sessions(self) -> None:
+        created = auth_service.sign_up(
+            SignUpInput(
+                email=self.email,
+                password="correct-horse-42",
+                display_name="Test Learner",
+            )
+        )
+        self.user_ids.add(created.user.user_id)
+        latest = created
+        for _ in range(5):
+            latest = auth_service.sign_in(
+                SignInInput(
+                    email=self.email,
+                    password="correct-horse-42",
+                )
+            )
+
+        with session_scope() as session:
+            active_count = len(
+                session.scalars(
+                    select(AuthSession).where(
+                        AuthSession.user_id == created.user.user_id,
+                        AuthSession.revoked_at.is_(None),
+                    )
+                ).all()
+            )
+
+        self.assertEqual(active_count, 5)
+        with self.assertRaises(AuthInvalidCredentialsError):
+            auth_service.authenticate(created.access_token)
+        self.assertEqual(
+            auth_service.authenticate(latest.access_token).user_id,
+            created.user.user_id,
+        )
+
 
 class MultiUserIsolationTests(unittest.TestCase):
     client_session_id = "shared-client-session-20260726"
@@ -133,8 +172,6 @@ class MultiUserIsolationTests(unittest.TestCase):
                     status="ready",
                     learner_snapshot={"cefr_level": "A2"},
                     outline={"weeks": []},
-                    planner_version="isolation-test",
-                    generator_version="isolation-test",
                 )
                 session.add(revision)
                 session.flush()

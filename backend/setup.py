@@ -57,7 +57,7 @@ def _install_dependencies() -> None:
 def _load_env() -> None:
     if str(BACKEND_ROOT) not in sys.path:
         sys.path.insert(0, str(BACKEND_ROOT))
-    from runtime_env import load_runtime_env
+    from speakflow.config import load_runtime_env
 
     load_runtime_env()
 
@@ -66,7 +66,7 @@ def _install_models(revision: str) -> None:
     _run(
         [
             sys.executable,
-            str(BACKEND_ROOT / "model_bundle.py"),
+            str(BACKEND_ROOT / "tools" / "model_bundle.py"),
             "download",
             "--revision",
             revision,

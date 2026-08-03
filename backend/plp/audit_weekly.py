@@ -21,7 +21,7 @@ def audit_weekly_generation(
     goal: str = "Communicate at work",
     interest: str = "Technology",
     native_language: str = "Arabic",
-    variation_seed: str = "audit-weekly-v1",
+    variation_seed: str = "audit-weekly",
     generation_attempt: int = 1,
 ) -> dict:
     source, skill_rows, chunk_rows = seed_records()

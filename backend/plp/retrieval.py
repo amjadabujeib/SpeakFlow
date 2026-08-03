@@ -9,7 +9,12 @@ from ollama import Client
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from .config import EMBEDDING_DIMENSIONS, OLLAMA_BASE_URL, OLLAMA_EMBED_MODEL
+from .config import (
+    EMBEDDING_DIMENSIONS,
+    OLLAMA_BASE_URL,
+    OLLAMA_EMBED_MODEL,
+    OLLAMA_EMBED_TIMEOUT_SECONDS,
+)
 from .mission_catalog import normalize_interests
 from .models import CurriculumChunk, CurriculumConcept
 
@@ -45,7 +50,10 @@ class RetrievedConcept:
 
 class CurriculumRetriever:
     def __init__(self, client: Client | None = None):
-        self.client = client or Client(host=OLLAMA_BASE_URL)
+        self.client = client or Client(
+            host=OLLAMA_BASE_URL,
+            timeout=OLLAMA_EMBED_TIMEOUT_SECONDS,
+        )
 
     def embed(
         self, texts: list[str], *, keep_alive: int | str = 0

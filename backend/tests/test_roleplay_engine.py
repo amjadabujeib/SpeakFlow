@@ -1,7 +1,6 @@
 import unittest
 
-from roleplay_engine import (
-    EVALUATION_VERSION,
+from speakflow.features.roleplay.domain.engine import (
     aggregate_session,
     apply_objective_updates,
     builtin_scenarios,
@@ -223,7 +222,6 @@ class RoleplayEvaluationTests(unittest.TestCase):
         self.assertEqual(result["scores"]["grammar_control"], 100)
         self.assertNotIn("overall", result["scores"])
         self.assertIsNone(result["scores"]["delivery_fluency"])
-        self.assertEqual(result["evaluation_version"], EVALUATION_VERSION)
 
     def test_spoken_session_keeps_recognition_uncertainty_separate(self):
         result = aggregate_session(
