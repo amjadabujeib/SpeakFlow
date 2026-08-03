@@ -11,7 +11,27 @@ support, news, and a durable four-week personalized learning plan (PLP).
 ```text
 frontend/   Flutter client, Android project, assets, and widget tests
 backend/    FastAPI application, migrations, ML services, and tests
+handbook/   Architecture, file maps, runtime flows, and maintenance guides
 ```
+
+The runtime follows a feature-oriented Clean Architecture modular monolith.
+Backend feature boundaries and application ports live under
+`backend/speakflow/`; Flutter transport adapters live with their features and
+are wired through Riverpod in `frontend/lib/app/providers.dart`. See the
+[backend architecture](handbook/02-backend-architecture.md) and
+[Flutter architecture](handbook/04-flutter-architecture.md) guides for the
+dependency rules and rationale.
+
+For a ground-up explanation of the system, including file-by-file maps,
+request flows, database ownership, ML boundaries, tests, and safe extension
+guides, start with the [project handbook](handbook/README.md).
+
+The backend and Flutter application share release `1.0.0`. Learning-plan JSON
+uses one compatibility marker, `format_revision: 1`, and one stable
+architecture name, `weekly_mission`. Internal prompt, planner, generator, and
+compiler counters are intentionally not exposed or persisted. Database
+revisions and verified ML asset formats remain independent because they protect
+different compatibility boundaries.
 
 Downloaded model weights are runtime assets rather than source files. They stay
 under ignored backend directories, while the small configuration and vocabulary
@@ -387,11 +407,13 @@ After the one-time installation:
 1. on Windows, open Ubuntu in WSL so its systemd-managed Docker Engine and
    Ollama services start; on native Linux, ensure those services are running;
 2. from the repository root, run `docker compose up -d postgres`;
-3. ensure Ollama is running;
-4. start the backend with `.venv/bin/python backend/main.py` from the repository
+3. apply any migrations with
+   `cd backend && ../.venv/bin/python -m alembic -c alembic.ini upgrade head`;
+4. ensure Ollama is running;
+5. start the backend with `.venv/bin/python backend/main.py` from the repository
    root;
-5. run `adb reverse tcp:8000 tcp:8000`;
-6. run `flutter run` from `frontend/`.
+6. run `adb reverse tcp:8000 tcp:8000`;
+7. run `flutter run` from `frontend/`.
 
 The PostgreSQL container uses a named Docker volume, so normal container
 restarts do not erase learner data.
@@ -403,6 +425,7 @@ Run backend checks from the repository root:
 ```bash
 cd backend
 ../.venv/bin/python -m alembic -c alembic.ini current
+../.venv/bin/python -m alembic -c alembic.ini heads
 PYTHONPATH=. ../.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 ```
 
@@ -430,6 +453,10 @@ Common setup failures:
   cable, or start the Android emulator.
 - **The app cannot reach the backend:** verify `/health`, then rerun
   `adb reverse tcp:8000 tcp:8000`.
+- **The learning-plan screen says PostgreSQL is unavailable while `/health`
+  says ready:** compare `alembic current` with `alembic heads`, run
+  `alembic upgrade head`, and retry. The basic health probe can reach the
+  database even when application tables are one migration behind.
 - **Groq features fail:** ensure `GROQ_API_KEY` is populated in the root `.env`
   without quotes or extra spaces, then restart the backend.
 
@@ -462,8 +489,8 @@ access runs:
 ```bash
 hf auth login
 PYTHONPATH=backend .venv/bin/python -m plp.curriculum_snapshot export
-.venv/bin/python backend/model_bundle.py inventory
-.venv/bin/python backend/model_bundle.py upload
+PYTHONPATH=backend .venv/bin/python -m tools.model_bundle inventory
+PYTHONPATH=backend .venv/bin/python -m tools.model_bundle upload
 ```
 
 Runtime authentication and download are covered in
@@ -551,7 +578,7 @@ interaction, vocabulary, and scenario-rubric evaluation. Custom-scenario
 creation uses the same level to generate an editable draft containing roles,
 an opening, observable goals, useful sentence starters, and situation-specific
 evaluation criteria. The learner reviews and can edit these fields and weights
-for conversation goals before the versioned scenario is persisted.
+for conversation goals before the scenario snapshot is persisted.
 
 Final feedback reports task achievement, each scenario-specific criterion,
 interaction, grammar, vocabulary, free-speech fluency, and
@@ -565,4 +592,4 @@ presented as a word to verify in scripted pronunciation practice, not as a
 diagnosed pronunciation error. Zero-turn sessions are abandoned; completed or
 interrupted sessions retain their turn evidence in PostgreSQL. Starting over
 deletes learner-owned PLP and roleplay data through database cascades while
-preserving reviewed curriculum. The current migration head is `20260726_07`.
+preserving reviewed curriculum. The current migration head is `20260802_09`.
