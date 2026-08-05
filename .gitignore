@@ -55,3 +55,6 @@ app.*.map.json
 # Runtime ML model weights are installed locally and are not source files.
 /backend/.models/
 /backend/training/
+
+# Operational and developer tools
+/backend/tools/
