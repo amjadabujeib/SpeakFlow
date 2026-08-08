@@ -50,6 +50,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
 
   double _progress = 0;
   Duration _audioDuration = Duration.zero;
+  String? _bufferingArticleId;
 
   _Article? get _playingArticle {
     if (_playingArticleId == null) return null;
@@ -125,23 +126,36 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
       await _stopPlayer();
       return;
     }
+    if (_bufferingArticleId == articleId) return; // already fetching
     final article = _articles.where((item) => item.id == articleId).firstOrNull;
     if (article == null) return;
     await _audioPlayer.stop();
     if (!mounted) return;
+    // Reset playing state and show buffering spinner — do NOT animate player yet
     setState(() {
-      _playingArticleId = articleId;
+      _playingArticleId = null;
+      _bufferingArticleId = articleId;
       _progress = 0;
       _audioDuration = Duration.zero;
     });
-    _playerSlideController.forward();
-    _eqController.repeat(reverse: true);
+    _playerSlideController.reverse();
+    _eqController.stop();
     try {
       final audio = await AppDependencies.instance.languageTools
           .synthesizeSpeech(article.body);
-      if (_playingArticleId != articleId) return;
+      if (!mounted || _bufferingArticleId != articleId) return;
+      // Audio is ready — now transition to playing state
+      setState(() {
+        _playingArticleId = articleId;
+        _bufferingArticleId = null;
+      });
+      _playerSlideController.forward();
+      _eqController.repeat(reverse: true);
       await _audioPlayer.play(BytesSource(audio));
     } catch (error) {
+      if (mounted && _bufferingArticleId == articleId) {
+        setState(() => _bufferingArticleId = null);
+      }
       await _stopPlayer();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,12 +168,13 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
   Future<void> _stopPlayer() async {
     await _audioPlayer.stop();
     if (!mounted) return;
+    _playerSlideController.reverse();
+    _eqController.stop();
     setState(() {
       _playingArticleId = null;
+      _bufferingArticleId = null;
       _progress = 0;
       _audioDuration = Duration.zero;
-      _playerSlideController.reverse();
-      _eqController.stop();
     });
   }
 
@@ -184,6 +199,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
       _isLoading = true;
       _error = null;
       _playingArticleId = null;
+      _bufferingArticleId = null;
     });
     _audioPlayer.stop();
     _eqController.stop();
@@ -302,6 +318,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
                           key: ValueKey(article.id),
                           article: article,
                           isPlaying: _playingArticleId == article.id,
+                          isBuffering: _bufferingArticleId == article.id,
                           onPlayToggle: () => _togglePlay(article.id),
                         )
                         .animate()

@@ -20,6 +20,7 @@ from plp.service import plp_service
 from speakflow.app import create_application
 from speakflow.app.health import build_health_router
 from speakflow.features.auth.presentation import router as auth_router
+from speakflow.features.admin.presentation import router as admin_router
 from speakflow.features.language_tools.presentation import build_language_tools_router
 from speakflow.features.learning_plan.presentation import router as learning_plan_router
 from speakflow.features.news.presentation import build_news_router
@@ -94,7 +95,7 @@ def health() -> dict:
 
 
 app = create_application(
-    routers=(auth_router, learning_plan_router, roleplay_router),
+    routers=(auth_router, learning_plan_router, roleplay_router, admin_router),
     lifespan=_application_lifespan,
 )
 app.include_router(

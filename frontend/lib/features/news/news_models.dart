@@ -6,7 +6,6 @@ class _Article {
   final String summary;
   final String category;
   final String level;
-  final String readTime;
   final String body;
 
   const _Article({
@@ -15,7 +14,6 @@ class _Article {
     required this.summary,
     required this.category,
     required this.level,
-    required this.readTime,
     required this.body,
   });
 
@@ -34,7 +32,6 @@ class _Article {
       summary: summary,
       category: category,
       level: level,
-      readTime: '${json['read_time_minutes'] as int? ?? 1} min',
       body: summary,
     );
   }

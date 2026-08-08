@@ -3,12 +3,14 @@ part of 'news_tab.dart';
 class _ArticleCard extends StatefulWidget {
   final _Article article;
   final bool isPlaying;
+  final bool isBuffering;
   final VoidCallback onPlayToggle;
 
   const _ArticleCard({
     super.key,
     required this.article,
     required this.isPlaying,
+    required this.isBuffering,
     required this.onPlayToggle,
   });
 
@@ -44,7 +46,7 @@ class _ArticleCardState extends State<_ArticleCard> {
                 blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
-              if (widget.isPlaying)
+              if (widget.isPlaying || widget.isBuffering)
                 BoxShadow(
                   color: _kPrimary.withValues(alpha: 0.18),
                   blurRadius: 22,
@@ -89,19 +91,6 @@ class _ArticleCardState extends State<_ArticleCard> {
                         ),
                       ),
 
-                      const SizedBox(height: 6),
-
-                      // Summary (2 lines max)
-                      Text(
-                        article.summary,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: _kTextSecondary,
-                          height: 1.5,
-                        ),
-                      ),
 
                       // Expandable body
                       AnimatedSize(
@@ -176,16 +165,6 @@ class _ArticleCardState extends State<_ArticleCard> {
 
         const Spacer(),
 
-        // Reading time
-        Icon(Icons.access_time_rounded, size: 13, color: _kTextSecondary),
-        const SizedBox(width: 4),
-        Text(
-          article.readTime,
-          style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary),
-        ),
-
-        // Expand indicator
-        const SizedBox(width: 8),
         AnimatedRotation(
           turns: _expanded ? 0.5 : 0,
           duration: const Duration(milliseconds: 260),
@@ -244,18 +223,10 @@ class _ArticleCardState extends State<_ArticleCard> {
   Widget _buildBottomRow(_Article article) {
     return Row(
       children: [
-        const Icon(Icons.menu_book_rounded, size: 14, color: _kTextSecondary),
-        const SizedBox(width: 5),
-        Text(
-          '${article.readTime} read',
-          style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary),
-        ),
 
-        const Spacer(),
-
-        // Play / Pause button
+        // Play / Pause / Buffer button
         GestureDetector(
-          onTap: widget.onPlayToggle,
+          onTap: widget.isBuffering ? null : widget.onPlayToggle,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             width: 40,
@@ -263,7 +234,7 @@ class _ArticleCardState extends State<_ArticleCard> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors: widget.isPlaying
+                colors: (widget.isPlaying || widget.isBuffering)
                     ? [_kAccent, _kPrimary]
                     : [_kPrimary, _kAccent],
                 begin: Alignment.topLeft,
@@ -277,11 +248,21 @@ class _ArticleCardState extends State<_ArticleCard> {
                 ),
               ],
             ),
-            child: Icon(
-              widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
+            child: widget.isBuffering
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(
+                    widget.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
           ),
         ),
       ],
