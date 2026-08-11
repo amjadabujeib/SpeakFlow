@@ -1,6 +1,8 @@
 # Flutter file guide
 
 This page covers every hand-written file under `frontend/lib`.
+It intentionally excludes the independent React operations client; see
+[Operations dashboard](14-admin-dashboard.md) for that file map.
 
 ## App and core
 
@@ -75,13 +77,13 @@ onboarding screen remains available for direct learning-data reset/re-entry.
 
 ## Shell and home
 
-- **`features/shell/main_shell.dart`** — Top settings action, route-derived bottom
-  navigation, active child, and plan refresh key.
+- **`features/shell/main_shell.dart`** — Top settings action, width-adaptive
+  route-derived bottom navigation, active child, and plan refresh key.
 
 - **`features/home/home_tab.dart`** — Embeds the active learning plan and links to
   grammar, pronunciation, and dictionary tools.
 
-- **`features/home/dictionary_screen.dart`** — Full dictionary workflow, input
+- **`features/practice/dictionary_screen.dart`** — Full dictionary workflow, input
   validation, loading, result, and speech controls.
 
 ## Learning-plan data and domain
@@ -147,14 +149,18 @@ onboarding screen remains available for direct learning-data reset/re-entry.
 - **`features/learning_plan/presentation/lesson/lesson_question_widgets.dart`** — Choice,
   fill-blank, listening, and checkpoint question interactions.
 
-- **`features/learning_plan/presentation/lesson/lesson_pronunciation_page.dart`** — Pronunciation
-  activity page state and backend result handling.
+- **`features/learning_plan/presentation/lesson/lesson_pronunciation_page.dart`** — Standalone
+  pronunciation activity route, recording state, and backend result handling.
+
+- **`features/learning_plan/presentation/lesson/lesson_pronunciation_feedback.dart`** — Public,
+  reusable score, phone-state, and practice-message widgets used by lesson
+  pronunciation views.
 
 - **`features/learning_plan/presentation/lesson/lesson_pronunciation_widgets.dart`** — Target,
   recording, analysis, and score widgets for pronunciation.
 
-- **`features/learning_plan/presentation/lesson/lesson_guided_speaking_page.dart`** — Open
-  speaking recording/transcription activity.
+- **`features/learning_plan/presentation/lesson/lesson_guided_speaking_page.dart`** — Standalone
+  open-speaking recording/transcription route.
 
 - **`features/learning_plan/presentation/lesson/lesson_completion_widgets.dart`** — Activity
   progress, lesson completion, XP, score, and next actions.
@@ -236,8 +242,11 @@ onboarding screen remains available for direct learning-data reset/re-entry.
 - **`features/chat/chat_tab_widgets.dart`** — Scenario cards, section states, and
   chat-tab components.
 
-- **`features/chat/chat_scenario_builder.dart`** — Custom scenario editor, generated
-  draft review, and submission.
+- **`features/chat/chat_scenario_builder.dart`** — Custom scenario state, generated
+  draft hydration, create/update submission, and validation.
+
+- **`features/chat/chat_scenario_editor.dart`** — Responsive brief and full-contract
+  custom-scenario editor sections.
 
 - **`features/chat/chat_scenario_fields.dart`** — Focused editable scenario fields and
   weighted criteria controls.
@@ -270,7 +279,10 @@ onboarding screen remains available for direct learning-data reset/re-entry.
   display.
 
 - **`features/chat/roleplay_session_summary_screen.dart`** — Evidence-aware final
-  feedback and provisional labels.
+  feedback scaffold and independently available category scores.
+
+- **`features/chat/roleplay_session_summary_sections.dart`** — Evidence-quality,
+  scenario-rubric, and trusted grammar-correction summary sections.
 
 ## News feature
 
@@ -288,16 +300,16 @@ onboarding screen remains available for direct learning-data reset/re-entry.
 - **`features/news/news_player_widgets.dart`** — TTS playback controls and player state
   widgets.
 
-## Shared widgets
+- **`features/news/widgets/dictionary_popup.dart`** — News article word-lookup overlay.
 
-- **`shared/widgets/dictionary_popup.dart`** — Reusable in-context word lookup overlay.
+## Shell settings
 
-- **`shared/widgets/settings_drawer.dart`** — Settings library/state, profile load/save,
+- **`features/shell/settings/settings_drawer.dart`** — Settings library/state, profile load/save,
   regeneration, reset, and signout.
 
-- **`shared/widgets/settings_drawer_body.dart`** — Drawer sections and controls.
+- **`features/shell/settings/settings_drawer_body.dart`** — Drawer sections and controls.
 
-- **`shared/widgets/settings_drawer_components.dart`** — Drawer-local headings, tiles,
+- **`features/shell/settings/settings_drawer_components.dart`** — Drawer-local headings, tiles,
   dialogs, and compact components.
 
 No light-theme implementation remains: the app intentionally exposes one dark

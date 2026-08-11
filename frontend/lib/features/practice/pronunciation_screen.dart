@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:record/record.dart';
@@ -22,13 +23,9 @@ class PronunciationLaunchArgs {
   const PronunciationLaunchArgs({required this.target, this.onPassed});
 }
 
-bool isPracticePronunciationPass(Map<String, dynamic>? scores) {
-  final accuracy = scores?['accuracy'];
-  final completeness = scores?['completeness'];
-  return accuracy is num &&
-      completeness is num &&
-      accuracy >= 85 &&
-      completeness >= 90;
+bool isPracticePronunciationPass(Map<String, dynamic>? result) {
+  final assessment = result?['assessment'];
+  return assessment is Map && assessment['passed'] == true;
 }
 
 // ─── Colors (matching SpeakFlow dark theme) ──────────────────
@@ -43,17 +40,18 @@ const _warning = Color(0xFFF59E0B);
 const _textPrimary = Color(0xFFF1F5FF);
 const _textSecondary = Color(0xFF8896B0);
 
-class PronunciationScreen extends StatefulWidget {
+class PronunciationScreen extends ConsumerStatefulWidget {
   final String? initialTarget;
   final Future<void> Function()? onPassed;
 
   const PronunciationScreen({super.key, this.initialTarget, this.onPassed});
 
   @override
-  State<PronunciationScreen> createState() => _PronunciationScreenState();
+  ConsumerState<PronunciationScreen> createState() =>
+      _PronunciationScreenState();
 }
 
-class _PronunciationScreenState extends State<PronunciationScreen>
+class _PronunciationScreenState extends ConsumerState<PronunciationScreen>
     with TickerProviderStateMixin {
   late final TextEditingController _wordCtrl;
   final _audioRecorder = AudioRecorder();
@@ -73,8 +71,10 @@ class _PronunciationScreenState extends State<PronunciationScreen>
   Map<String, dynamic>? _scores;
   Map<String, dynamic>? _guide;
   String? _feedback;
+  String? _feedbackKind;
   String? _errorMessage;
   String? _guideError;
+  bool _targetPassed = false;
   bool _passHandled = false;
   int _guideRequest = 0;
 
@@ -134,7 +134,7 @@ class _PronunciationScreenState extends State<PronunciationScreen>
       _isGuideLoading = true;
       _guideError = null;
     });
-    final result = await AppDependencies.instance.pronunciation.guide(target);
+    final result = await ref.read(pronunciationApiProvider).guide(target);
     if (!mounted || request != _guideRequest) return;
     setState(() {
       _isGuideLoading = false;
@@ -182,7 +182,8 @@ class _PronunciationScreenState extends State<PronunciationScreen>
       _guideError = null;
     });
     try {
-      final audio = await AppDependencies.instance.languageTools
+      final audio = await ref
+          .read(languageToolsApiProvider)
           .synthesizeSpeech(target);
       if (!mounted || request != _exampleAudioRequest) return;
       await _examplePlayer.play(BytesSource(audio));
@@ -235,7 +236,9 @@ class _PronunciationScreenState extends State<PronunciationScreen>
         _analysis = null;
         _scores = null;
         _feedback = null;
+        _feedbackKind = null;
         _errorMessage = null;
+        _targetPassed = false;
       });
     }
   }
@@ -253,10 +256,7 @@ class _PronunciationScreenState extends State<PronunciationScreen>
     if (path != null && target != null && target.isNotEmpty) {
       Map<String, dynamic> result;
       try {
-        result = await AppDependencies.instance.pronunciation.score(
-          target,
-          path,
-        );
+        result = await ref.read(pronunciationApiProvider).score(target, path);
       } finally {
         try {
           final recording = File(path);
@@ -277,19 +277,20 @@ class _PronunciationScreenState extends State<PronunciationScreen>
         final analysis = result['analysis'] as List<dynamic>?;
         final scores = result['scores'] as Map<String, dynamic>?;
         if (analysis != null) {
-          await PhonemeProgressStore.instance.recordAnalysis(analysis);
+          await PhonemeProgressStore.instance.recordResult(result);
         }
         if (!mounted) return;
+        final targetPassed = isPracticePronunciationPass(result);
         setState(() {
           _spokenResult = result['spoken']?.toString();
           _analysis = analysis;
           _scores = scores;
           _feedback = result['feedback']?.toString();
+          _feedbackKind = result['feedback_kind']?.toString();
+          _targetPassed = targetPassed;
           _isProcessing = false;
         });
-        if (!_passHandled &&
-            widget.onPassed != null &&
-            isPracticePronunciationPass(scores)) {
+        if (!_passHandled && widget.onPassed != null && targetPassed) {
           _passHandled = true;
           await widget.onPassed!();
         }
@@ -309,12 +310,9 @@ class _PronunciationScreenState extends State<PronunciationScreen>
   }
 
   int get _score {
-    final value = _scores?['overall_score'] ?? _scores?['gop_score'];
+    final value = _scores?['overall_score'];
     return value is num ? value.round() : 0;
   }
-
-  bool get _queueTargetPassed =>
-      widget.onPassed != null && isPracticePronunciationPass(_scores);
 
   bool get _hasTarget => _wordCtrl.text.trim().isNotEmpty;
 
@@ -379,7 +377,7 @@ class _PronunciationScreenState extends State<PronunciationScreen>
             // ── Results ──────────────────────────────────────
             if (_analysis != null && _analysis!.isNotEmpty) ...[
               _buildScoreCard(),
-              if (_queueTargetPassed) ...[
+              if (_targetPassed) ...[
                 const SizedBox(height: 16),
                 Container(
                   key: const ValueKey('practice-word-passed'),
@@ -389,15 +387,21 @@ class _PronunciationScreenState extends State<PronunciationScreen>
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _success.withValues(alpha: 0.35)),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.verified_rounded, color: _success),
-                      SizedBox(width: 10),
+                      const Icon(Icons.verified_rounded, color: _success),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Pronounced correctly. This target was moved to '
-                          'your Mastered words.',
-                          style: TextStyle(color: _textPrimary, height: 1.35),
+                          widget.onPassed != null
+                              ? 'Pronunciation verified. This target was moved '
+                                    'to your Mastered words.'
+                              : 'Pronunciation verified. The transcript and '
+                                    'phone identities agree with the target.',
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            height: 1.35,
+                          ),
                         ),
                       ),
                     ],

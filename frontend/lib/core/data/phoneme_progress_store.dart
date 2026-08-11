@@ -6,6 +6,13 @@ import 'package:path_provider/path_provider.dart';
 
 import '../auth/auth_session_store.dart';
 
+bool isPhonemeProgressEligibleResult(Map<String, dynamic> result) {
+  final assessment = result['assessment'];
+  return assessment is Map &&
+      assessment['transcript_verified'] == true &&
+      result['analysis'] is List;
+}
+
 class PhonemeProgress {
   final String symbol;
   final int score;
@@ -78,7 +85,11 @@ class PhonemeProgressStore extends ChangeNotifier {
     _loadFuture = null;
   }
 
-  Future<int> recordAnalysis(List<dynamic> analysis) async {
+  Future<int> recordResult(Map<String, dynamic> result) async {
+    final analysis = result['analysis'];
+    if (!isPhonemeProgressEligibleResult(result) || analysis is! List) {
+      return 0;
+    }
     _activateCurrentUser();
     final owner = _loadedUserId!;
     await load();

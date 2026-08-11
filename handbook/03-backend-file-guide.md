@@ -9,13 +9,16 @@ in [ML models and providers](09-ml-and-providers.md).
 - **`main.py`** — Executable composition root; wires routers, lifespan, health, and
   runtime callables.
 
-- **`setup.py`** — Cross-platform bootstrap: dependencies, database, migrations, models,
+- **`tools/setup_backend.py`** — Cross-platform bootstrap: dependencies, database, migrations, models,
   curriculum, and verification.
 
 - **`pyproject.toml`** — Python package metadata, package discovery, and declared
   top-level modules.
 
 - **`requirements.txt`** — Reproducible runtime/test dependency list used by setup.
+
+- **`requirements-dev.txt`** — Pinned Ruff version for the maintained backend lint
+  boundary and CI.
 
 - **`alembic.ini`** — Alembic configuration; migration environment is below
   `migrations/`.
@@ -72,7 +75,23 @@ root-level compatibility facades.
 
 ## Other feature presentation and persistence files
 
-- **`features/language_tools/presentation/schemas.py`** — Grammar, dictionary, and TTS
+- **`features/admin/presentation.py`** — Thin `/admin` HTTP routing and safe error
+  translation.
+
+- **`features/admin/schemas.py`** — Strict response models and the validated
+  revocation-reason command.
+
+- **`features/admin/cli.py`** — Local grant/remove workflow that revokes existing
+  sessions and audits privilege changes.
+
+- **`features/admin/infrastructure/models.py`** — Privileged-action audit mapping.
+
+- **`features/admin/infrastructure/reporting.py`** — Operational aggregates, provider
+  health, account search, audit history, and audited session revocation.
+
+- **`features/admin/__init__.py`** — Marks the operations feature boundary.
+
+- **`features/language_tools/contracts.py`** — Grammar, dictionary, and TTS
   inputs.
 
 - **`features/language_tools/presentation/router.py`** — Router factory for grammar,
@@ -87,6 +106,10 @@ root-level compatibility facades.
 - **`features/pronunciation/presentation/router.py`** — Multipart pronunciation and
   guided-speaking routes.
 
+- **`features/pronunciation/domain/assessment.py`** — Versioned conservative
+  pass/inconclusive/error policy based on completeness, transcript verification,
+  assigned IPA focus, and positive CTC phone support.
+
 - **`features/roleplay/infrastructure/models.py`** — Roleplay scenario, session, and
   turn ORM tables.
 
@@ -99,6 +122,10 @@ root-level compatibility facades.
 The short feature/package `__init__.py` files document ownership and export the
 router factory or router used by `main.py`.
 
+The admin router reads auth, PLP, and roleplay mappings directly because it is
+an operational reporting adapter. Middleware owns administrator authorization;
+the admin feature owns only its contracts, audit persistence, and operations.
+
 ## Roleplay domain
 
 - **`features/roleplay/domain/catalog.py`** — Reviewed built-in scenarios, objective
@@ -107,49 +134,55 @@ router factory or router used by `main.py`.
 - **`features/roleplay/domain/engine.py`** — Deterministic scenario lookup, objective
   updates, transcript aggregation, and evaluation policy.
 
-## `speakflow/runtime`
+- **`features/roleplay/domain/evaluation.py`** — Trusted correction-summary policy
+  shared by explicit and disconnect finalization.
 
-- **`models.py`** — Owns lazy global state and locks for WhisperX, GECToR, Kokoro, and
-  pronunciation scorer.
+## Runtime ownership
 
-- **`grammar_model.py`** — Constructs and loads the self-contained GECToR checkpoint
+- **`speakflow/runtime/models.py`** — Owns eager startup warm-up, global state, readiness reports, and
+  locks for WhisperX, GECToR, Kokoro, and the pronunciation scorer.
+
+- **`features/language_tools/infrastructure/grammar_model.py`** — Constructs and loads the self-contained GECToR checkpoint
   without resolving an external base-model path.
 
-- **`language.py`** — Groq client, chat reply, grammar feedback, dictionary lookup, and
+- **`features/language_tools/infrastructure/language.py`** — Groq client, grammar feedback, dictionary lookup, and
   display sanitization.
 
-- **`news.py`** — News retrieval, CEFR rewrite cache, batching, URL checks, and
+- **`features/news/infrastructure/provider.py`** — News retrieval, CEFR rewrite cache, batching, URL checks, and
   SSRF-safe image proxy.
 
-- **`tts.py`** — Kokoro synthesis, content-addressed cache, request coalescing, and
+- **`features/language_tools/infrastructure/tts.py`** — Kokoro synthesis, content-addressed cache, request coalescing, and
   pronunciation guide.
 
-- **`pronunciation_audio.py`** — Speech gate, transcript alignment, completeness, word
-  matching, and upload reads.
+- **`features/pronunciation/infrastructure/pronunciation_audio.py`** — WAV decoding/resampling, speech gate, transcript
+  alignment, completeness, word matching, and upload reads.
 
-- **`pronunciation_text.py`** — Transcript comparison, local/Groq coaching,
+- **`features/pronunciation/infrastructure/pronunciation_text.py`** — Transcript comparison, local/Groq coaching,
   placeholders, and feedback wording.
 
-- **`pronunciation_endpoints.py`** — WAV decoding, resampling, guided transcription,
-  strict score orchestration, and PLP attempt recording.
+- **`features/pronunciation/infrastructure/pronunciation_endpoints.py`** — Validated multipart contracts, guided
+  transcription, strict score orchestration, and PLP attempt recording.
 
-- **`chat_delivery.py`** — Target-free fluency/pitch estimates, chat transcription, and
+- **`features/roleplay/application/chat_delivery.py`** — Target-free fluency/pitch estimates, chat transcription, and
   trusted grammar correction.
 
-- **`roleplay_scenario.py`** — Provider prompts, validated scenario drafts, role
+- **`features/roleplay/application/roleplay_scenario.py`** — Provider prompts, validated scenario drafts, role
   replies, evidence, and repetition repair.
 
-- **`roleplay_session.py`** — Authenticated WebSocket state machine and per-session turn
+- **`features/roleplay/presentation/websocket_session.py`** — Authenticated WebSocket state machine and per-session turn
   locks.
 
-- **`roleplay_turn.py`** — Atomic turn generation/persistence across workers.
+- **`features/roleplay/application/roleplay_socket_policy.py`** — One-session socket binding and safe public
+  turn-error classification.
 
-- **`roleplay_evaluation.py`** — Arabic help, final evaluation, TTS delivery, HTTP
+- **`features/roleplay/application/roleplay_turn.py`** — Atomic turn generation/persistence across workers.
+
+- **`features/roleplay/presentation/evaluation.py`** — Arabic help, final evaluation, TTS delivery, HTTP
   mapping, and disconnect handling.
 
-- **`roleplay_finalize.py`** — Explicit session-finalization endpoint use case.
+- **`features/roleplay/presentation/finalize.py`** — Explicit session-finalization endpoint.
 
-### `speakflow/runtime/pronunciation`
+### `speakflow/features/pronunciation/infrastructure/acoustic`
 
 - **`core.py`** — Canonical phones, G2P, IPA conversion, text normalization, and score
   aggregation.
@@ -173,10 +206,10 @@ runtime scorer and offline training code.
 UTC timestamp helper. Auth, PLP, and roleplay models share this metadata so
 migrations and foreign keys describe one modular-monolith database.
 
-## `plp` public surfaces and configuration
+## Learning-plan engine surfaces and configuration
 
-- **`__init__.py`** — Lightweight package marker; importing `plp` does not eagerly load
-  FastAPI.
+- **`features/learning_plan/application/services.py`** — Narrow production-facing
+  learning-plan, lifecycle, and pronunciation-assignment services.
 
 - **`config.py`** — Database, embedding, provider, model, lease, and curriculum
   configuration.
@@ -193,20 +226,23 @@ migrations and foreign keys describe one modular-monolith database.
 
 - **`schemas.py`** — Stable re-export facade for public PLP schemas.
 
-- **`schema_core.py`** — Profiles, plans, activities, attempts, jobs, progress, and
-  document contracts.
+- **`schema_core.py`** — Profiles, plans, activities, lesson content, and generation
+  contracts.
+
+- **`schema_progress.py`** — Progress, activity-attempt, pronunciation target-state,
+  document, and adaptation contracts.
 
 - **`schema_roleplay.py`** — Roleplay scenario, turn, translation, evaluation, and
   transcript contracts.
 
-- **`service.py`** — Stable `PlpService` facade composed from focused mixins; exports
-  `plp_service`.
+- **`service.py`** — Private `LearningPlanEngine` composition and shared engine instance.
 
-- **`service_base.py`** — Shared imports, settings, lifecycle, and basic service state.
+- **`service_base.py`** — Shared lifecycle, stale-roleplay cleanup, catalog-aware
+  readiness, and learner-profile behavior.
 
 - **`service_errors.py`** — PLP error hierarchy and operational constants.
 
-## PLP service implementation
+## Learning-plan engine implementation
 
 - **`service_document.py`** — Profile access and construction of the mobile-safe
   active-plan document.
@@ -223,17 +259,31 @@ migrations and foreign keys describe one modular-monolith database.
 - **`service_attempts.py`** — Idempotent attempt submission, grading integration, XP,
   completion, and evidence writes.
 
+- **`pronunciation_attempt_policy.py`** — Reduced phone-evidence persistence and the
+  bounded inconclusive-retry, per-target first-conclusive-evidence, and normalized
+  multi-target weighting policies.
+
+- **`service_pronunciation.py`** — Server-side authorization of assigned PLP
+  pronunciation targets before acoustic scoring.
+
 - **`service_grading.py`** — Answer-key stripping, deterministic graders, pronunciation
   validation, and failure envelopes.
 
-- **`service_progress.py`** — Streak/progress calculation, eligibility, verified
-  completion, and adaptation views.
+- **`service_progress.py`** — Streak/progress calculation, target-scoped pronunciation
+  mastery scores, durable verified/unverified target state, eligibility, and
+  adaptation views.
 
 - **`service_identity.py`** — Profile mapping, local-user creation, learner snapshots,
   and safe DB error translation.
 
-- **`service_roleplay.py`** — Learner-owned scenario/session/turn persistence and
-  transcript queries.
+- **`features/roleplay/infrastructure/persistence.py`** — Roleplay session/turn
+  persistence, finalization state, and transcript queries.
+
+- **`features/roleplay/infrastructure/scenario_repository.py`** — User-owned custom
+  scenario list, create, replacement edit, and delete lifecycle.
+
+- **`features/roleplay/infrastructure/persistence_policy.py`** — Roleplay idempotency,
+  objective-evidence agreement, and database-safe final metric bounds.
 
 ## Curriculum and planning
 
@@ -242,13 +292,32 @@ migrations and foreign keys describe one modular-monolith database.
 
 - **`ingest.py`** — Validates and idempotently inserts reviewed seed records.
 
-- **`external_curriculum.py`** — Stable retrieval/enrichment facade and lexical helpers.
+- **`curriculum_readiness.py`** — Verifies that every supported level has enough
+  active skills and reviewed chunk coverage without loading models or embeddings.
+
+- **`external_curriculum.py`** — Source parsing and lexical enrichment. Only nouns,
+  verbs, adjectives, and adverbs can be promoted with WordNet evidence; unsupported
+  source parts of speech remain evaluation-only.
 
 - **`external_curriculum_ingest.py`** — CEFR-J/Words-CEFR source loading and database
   upsert CLI.
 
-- **`retrieval.py`** — Exact and vector curriculum retrieval with source/provenance
-  checks.
+- **`interest_vocabulary.py`** — Reviewed exact CEFR/headword/part-of-speech links
+  between existing source vocabulary and learner interests, plus narrow removal
+  of known broad-taxonomy false positives.
+
+- **`lexical_definition_policy.py`** — Low-level, provider-independent checks for
+  short, non-circular learner definitions anchored to their source meaning.
+
+- **`lexical_policy.py`** — One runtime authority for supported lexical parts of
+  speech, CEFR definition limits, reviewed gloss resolution, and teachability.
+
+- **`lexical_retrieval.py`** — Vocabulary-specific filtering, semantic ranking,
+  direct/related/general quotas, term deduplication, and prior-exposure priority.
+
+- **`retrieval.py`** — Exact/vector curriculum retrieval facade and local embedding
+  client. Direct interest evidence is a hard tier; related themes can fill a
+  shortage, while an untagged general term needs a calibrated scenario match.
 
 - **`planner.py`** — Builds the deterministic four-week outline from profile and
   curriculum.
@@ -259,17 +328,26 @@ migrations and foreign keys describe one modular-monolith database.
   spacing, and titles.
 
 - **`mission_catalog.py`** — Normalizes goals/interests and selects rotating weekly
-  missions.
+  missions. Goal plus direct interest-context matches outrank scenarios that can
+  only be themed with the interest; a stable digest breaks ties inside a relevance
+  tier.
 
 - **`mission_catalog_models.py`** — Typed goal, interest, archetype, lesson-role, and
   mission definitions.
 
-- **`mission_archetypes.py`** — Reviewed scenario archetype catalog used by mission
-  selection.
+- **`mission_archetypes.py`** — Stable combined archetype-catalog facade.
+
+- **`mission_archetypes_core.py`** and **`mission_archetypes_extended.py`** — Reviewed
+  scenario records split along a catalog boundary to satisfy the source-size policy.
+  Their CEFR outcomes name an observable product and preserve required map, source,
+  dataset, rule, or case evidence while support is progressively reduced. User-facing
+  contracts prefer real subjects and distinguish sourced facts from simulated practice
+  details; legacy IDs containing `fictional` remain stable for persisted plans.
 
 - **`curated_lessons.py`** — Reviewed fallback/anchor lesson templates.
 
-- **`learner_glosses.py`** — Reviewed learner-friendly definition overrides.
+- **`learner_glosses.py`** — Reviewed WordNet sense selection and learner-friendly
+  definition overrides for ambiguous or overly technical lexical-source entries.
 
 - **`lesson_quality.py`** — Semantic quality rules for generated and curated activities.
 
@@ -285,8 +363,9 @@ migrations and foreign keys describe one modular-monolith database.
 - **`weekly_mission_models.py`** — Strict weekly draft models, request records, prepared
   week, and JSON schema.
 
-- **`weekly_mission_prepare.py`** — Deterministically prepares five lesson anchors and
-  provider requests.
+- **`weekly_mission_prepare.py`** — Deterministically prepares five lesson anchors,
+  provider requests, and exactly two safe weekly vocabulary targets. A week without
+  a vocabulary-domain lesson pre-teaches those targets in its first teaching lesson.
 
 - **`weekly_mission_generator.py`** — Makes the constrained one-call weekly provider
   request.
@@ -315,8 +394,13 @@ answers, skills, and completion rules.
 - **`curriculum_snapshot_store.py`** — Transactional database import/inspection CLI for
   a validated snapshot.
 
-- **`audit_curriculum.py`** — Checks stored sources, concepts, embeddings, and
-  curriculum integrity.
+- **`audit_curriculum.py`** — Checks stored sources, catalog composition, embeddings,
+  runtime lexical roles, reviewed interest assignments, direct interest coverage,
+  teachable interest coverage, and curriculum integrity. The database/snapshot
+  audit remains usable after
+  the optional raw import files have been removed: it reports local-source
+  comparison fields as unavailable rather than treating their absence as a
+  runtime failure.
 
 - **`audit_generation.py`** — Generates/audits a representative lesson for a
   level/domain.
@@ -353,3 +437,11 @@ files own schema evolution:
 
 - **`20260802_09`** — Standard learning-plan and roleplay contracts without redundant
   labels.
+
+- **`20260808_10`** — Administrator capability and privileged-action audit records.
+
+- **`20260809_11`** — Per-turn grammar-evaluation availability for trustworthy
+  roleplay grammar scores.
+
+- **`20260809_12`** — Persisted meaningful/unclear/off-topic roleplay-turn
+  grounding status.

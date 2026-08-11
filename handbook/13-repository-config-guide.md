@@ -13,9 +13,12 @@ Git—not to SpeakFlow's application design.
 - **`handbook/`** — Architecture, file maps, runtime flows, and maintenance guides.
 
 - **`backend/`** — FastAPI application, PLP engine, migrations, ML runtimes, tools,
-  training, and tests.
+  and tests.
 
 - **`frontend/`** — Flutter application, Android host project, assets, and widget tests.
+
+- **`admin-dashboard/`** — React/Vite operations client, static assets, npm lockfile,
+  lint configuration, and local backend proxy.
 
 - **`compose.yaml`** — PostgreSQL 16 + pgvector service, health check, port, and durable
   named volume.
@@ -29,16 +32,8 @@ Git—not to SpeakFlow's application design.
 - **`.gitignore`** — Excludes secrets, model assets, raw data, environments, caches, and
   build output.
 
-- **`start_dev.sh`** — Machine-oriented launcher for local PostgreSQL, ADB, optional
-  scrcpy, backend, and Flutter.
-
-- **`development-guidelines.md`** — Repository working principles: assumptions,
-  simplicity, surgical changes, and verification.
-
-`start_dev.sh` starts a custom locally installed PostgreSQL cluster and is
-specific to its configured/default paths. It does not replace the portable
-Docker/README workflow and does not currently apply Alembic migrations. After
-pulling schema changes, run `alembic upgrade head` before using that launcher.
+- **`.github/workflows/quality.yml`** — Pull-request and main-branch validation for
+  the backend, Flutter app, dashboard, and Alembic metadata.
 
 ## Environment variables
 
@@ -59,21 +54,32 @@ pulling schema changes, run `alembic upgrade head` before using that launcher.
 
 - **`OLLAMA_*`** — Local Ollama base URL and curriculum embedding model.
 
+- **`SPEAKFLOW_HOST` / `SPEAKFLOW_PORT`** — FastAPI listener; defaults to loopback
+  port 8000.
+
 The release Flutter URLs are Dart compile-time definitions, not `.env` values.
 See `ApiConfig` and the README deployment instructions.
+
+The dashboard has no environment-variable API origin today. Its source uses
+relative `/api/auth` and `/admin` URLs, and `vite.config.js` proxies those paths
+to `127.0.0.1:8000` only during `npm run dev`.
+
+Compose publishes PostgreSQL on `127.0.0.1` rather than all host interfaces.
 
 ## Backend support directories
 
 - **`backend/migrations/`** — Alembic environment, template, and ordered schema
   revisions.
 
-- **`backend/tests/`** — Backend unit, contract, architecture, characterization, and
-  integration tests.
+- **`backend/tests/`** — Backend unit, contract, architecture, characterization,
+  and integration tests, grouped by application or feature ownership. Learning
+  plan contracts, generation, weekly missions, and support fixtures have
+  dedicated subpackages; runtime fixtures live beside the suites that consume
+  them.
+
+- **`backend/requirements-dev.txt`** — Pinned backend static-analysis tooling.
 
 - **`backend/tools/`** — Thin supported audit command entrypoints and their README.
-
-- **`backend/training/`** — Offline data preparation/training/evaluation code; never
-  imported by runtime.
 
 - **`backend/resources/gector/`** — Small tracked GECToR license/vocabulary resources.
 
@@ -100,7 +106,9 @@ they must remain ignored and can be removed safely when the process is stopped.
 - **`frontend/.metadata`** — Flutter tool project metadata used for upgrade/migration
   behavior.
 
-- **`frontend/test/`** — Widget, model, adapter, architecture, and source-size tests.
+- **`frontend/test/`** — Widget, model, adapter, architecture, and source-size
+  tests grouped under `app/`, `architecture/`, `core/`, and feature directories
+  that mirror `frontend/lib` ownership.
 
 - **`frontend/assets/`** — Tracked runtime fonts, font licenses, and test/mock plan
   fixture.
@@ -144,11 +152,11 @@ The direct package choices have focused roles:
 - `assets/fonts/Cairo.ttf`: Arabic-capable display.
 - `assets/fonts/SourceCodePro.ttf`: phonetic/code-like aligned content.
 - corresponding `*-OFL.txt` files: font licenses.
-- `assets/mock/plp_plan.json`: deterministic plan fixture/development asset,
-  not a server-authoritative production plan.
+- `test/fixtures/plp_plan.json`: deterministic test-only plan fixture; it is not
+  declared in `pubspec.yaml` or bundled into production builds.
 
-Assets must be declared in `pubspec.yaml`. Large ML weights belong to the
-backend model bundle, not Flutter assets.
+Runtime Flutter assets must be declared in `pubspec.yaml`. Test fixtures remain
+under `test/`; large ML weights belong to the backend model bundle.
 
 ## Android host project
 
@@ -185,6 +193,24 @@ keystore files are machine-generated or secret. They must remain uncommitted.
 Release signing is configured only when all required `key.properties` values
 exist; release traffic also requires HTTPS/WSS at the Dart layer.
 
+## Operations dashboard package files
+
+- **`admin-dashboard/package.json`** — React/Vite dependencies and dev, test, lint,
+  build, and preview scripts.
+- **`admin-dashboard/package-lock.json`** — Exact npm dependency resolution.
+- **`admin-dashboard/vite.config.js`** — React plugin and development-only auth/admin
+  proxies.
+- **`admin-dashboard/.oxlintrc.json`** — React hooks/export lint policy.
+- **`admin-dashboard/src/`** — Authenticated transport, login, dashboard composition,
+  focused panels, and CSS.
+- **`admin-dashboard/test/`** — Node tests for dashboard authentication and transport.
+- **`admin-dashboard/public/`** — Static icons/favicon copied into builds.
+
+`node_modules/` and `dist/` are generated and ignored. Use `npm ci` to restore
+dependencies and `npm run build` to regenerate `dist/`. FastAPI does not serve
+the built files; a production static host must use HTTPS and share a
+reverse-proxied origin with `/api/auth` and `/admin`.
+
 ## Documentation ownership
 
 - Change installation/runtime prerequisites in root `README.md`.
@@ -194,6 +220,8 @@ exist; release traffic also requires HTTPS/WSS at the Dart layer.
   `handbook/04-flutter-architecture.md`.
 - Change implementation, file, and flow explanations in the relevant
   `handbook/` page.
-- Change tool/training-specific commands in their local READMEs.
+- Change tool-specific commands in `backend/tools/README.md`.
+- Change dashboard setup, endpoint, and build details in
+  `admin-dashboard/README.md` and `handbook/14-admin-dashboard.md`.
 - Update all references when a migration head, source path, route family, or
   model bundle contract changes.

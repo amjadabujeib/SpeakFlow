@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -101,8 +102,10 @@ class RoleplayTurn(Base):
     input_mode: Mapped[str] = mapped_column(String(16))
     user_text: Mapped[str] = mapped_column(Text)
     assistant_text: Mapped[str] = mapped_column(Text)
+    turn_status: Mapped[str] = mapped_column(String(16), default="meaningful")
     grammar_corrected_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     grammar_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    grammar_evaluated: Mapped[bool] = mapped_column(Boolean, default=False)
     grammar_error_units: Mapped[float] = mapped_column(Float, default=0.0)
     word_count: Mapped[int] = mapped_column(Integer, default=0)
     word_feedback: Mapped[list] = mapped_column(JSONB, default=list)
@@ -116,6 +119,10 @@ class RoleplayTurn(Base):
         UniqueConstraint("session_id", "turn_id"),
         UniqueConstraint("session_id", "sequence"),
         CheckConstraint("sequence BETWEEN 1 AND 500"),
+        CheckConstraint(
+            "turn_status IN ('meaningful', 'unclear', 'off_topic')",
+            name="ck_roleplay_turns_turn_status",
+        ),
         CheckConstraint("grammar_error_units >= 0"),
         CheckConstraint("word_count BETWEEN 0 AND 10000"),
     )

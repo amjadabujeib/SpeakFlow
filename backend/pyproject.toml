@@ -17,11 +17,26 @@ py-modules = ["main"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["speakflow*", "plp*", "gopt_models*", "tools*"]
+include = ["speakflow*", "gopt_models*", "tools*"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+include = [
+    "main.py",
+    "speakflow/app/**/*.py",
+    "speakflow/features/**/*.py",
+    "speakflow/shared/**/*.py",
+    "migrations/**/*.py",
+    "tests/**/*.py",
+    "tools/**/*.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["E402"]
+"tests/**/support/*.py" = ["F401"]
+"tests/runtime/runtime_test_support.py" = ["F401"]

@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/providers/app_state.dart';
+import '../../app/providers.dart';
 import '../learning_plan/data/plp_repository.dart';
 import '../learning_plan/presentation/learning_plan_screen.dart';
 
-class HomeTab extends StatelessWidget {
+class HomeTab extends ConsumerWidget {
   final PlpRepository? repository;
 
   const HomeTab({super.key, this.repository});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final planRefreshToken = ref.watch(
+      appStateProvider.select((state) => state.planRefreshToken),
+    );
     return LearningPlanScreen(
-      key: ValueKey(AppState().planRefreshToken),
+      key: ValueKey(planRefreshToken),
       repository: repository,
       embedded: true,
       embeddedTop: Row(

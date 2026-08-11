@@ -23,6 +23,7 @@ import 'roleplay_feedback_data.dart';
 import 'roleplay_language_help_sheet.dart';
 import 'roleplay_message_bubbles.dart';
 import 'roleplay_models.dart';
+import 'roleplay_text_policy.dart';
 
 part 'chat_session_controller.dart';
 part 'chat_interaction_controller.dart';
@@ -60,6 +61,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final Map<String, String> _recordingPaths = {};
 
   late String _clientSessionId;
+  late RoleplayScenario _scenario;
   late final AnimationController _recordingAnimation;
   WebSocketChannel? _channel;
   StreamSubscription? _socketSubscription;
@@ -81,6 +83,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     super.initState();
     _clientSessionId =
         'roleplay-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
+    _scenario = widget.scenario;
     _recordingAnimation = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 650),
@@ -120,7 +123,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             : Column(
                 children: [
                   RoleplayGoalProgressCard(
-                    scenario: widget.scenario,
+                    scenario: _scenario,
                     objectiveState: _objectiveState,
                     progress: _objectiveProgress,
                     complete: _scenarioComplete,
@@ -145,7 +148,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            widget.scenario.title,
+            _scenario.title,
             style: GoogleFonts.inter(
               color: _text,
               fontWeight: FontWeight.w700,
@@ -153,7 +156,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           ),
           Text(
-            'You are the ${widget.scenario.learnerRole}',
+            'You are the ${_scenario.learnerRole}',
             style: GoogleFonts.inter(color: _muted, fontSize: 11),
           ),
         ],

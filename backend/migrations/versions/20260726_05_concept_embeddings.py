@@ -1,11 +1,10 @@
 """Add semantic retrieval evidence to curriculum concepts."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from pgvector.sqlalchemy import Vector
-
 
 revision: str = "20260726_05"
 down_revision: str | None = "20260724_04"

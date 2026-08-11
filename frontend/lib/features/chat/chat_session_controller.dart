@@ -16,6 +16,9 @@ extension _ChatSessionController on _ChatScreenState {
             scenarioId: widget.scenario.id,
           );
       _sessionCreated = true;
+      _scenario = RoleplayScenario.fromJson(
+        Map<String, dynamic>.from(started['scenario'] as Map? ?? {}),
+      );
       _objectiveState = Map<String, dynamic>.from(
         started['objective_state'] as Map? ?? {},
       );
@@ -25,7 +28,7 @@ extension _ChatSessionController on _ChatScreenState {
           RoleplayChatMessage(
             id: 'opening',
             isUser: false,
-            text: widget.scenario.opening,
+            text: _scenario.opening,
           ),
         );
       final channel = IOWebSocketChannel.connect(
@@ -134,6 +137,9 @@ extension _ChatSessionController on _ChatScreenState {
     if (failedRecording != null) {
       File(failedRecording).delete().catchError((_) => File(failedRecording));
     }
+    _showError(
+      event['error']?.toString() ?? 'The turn could not be completed.',
+    );
   }
 
   void _handleTurnResponse(Map<String, dynamic> event) {
@@ -164,13 +170,15 @@ extension _ChatSessionController on _ChatScreenState {
       } else {
         _messages.add(userMessage);
       }
-      _messages.add(
-        RoleplayChatMessage(
-          id: 'ai-$turnId',
-          isUser: false,
-          text: event['text']?.toString() ?? 'Could you say that again?',
-        ),
-      );
+      if (_messages.every((item) => item.id != 'ai-$turnId')) {
+        _messages.add(
+          RoleplayChatMessage(
+            id: 'ai-$turnId',
+            isUser: false,
+            text: event['text']?.toString() ?? 'Could you say that again?',
+          ),
+        );
+      }
       _objectiveState = Map<String, dynamic>.from(
         event['objective_state'] as Map? ?? _objectiveState,
       );
@@ -227,6 +235,11 @@ extension _ChatSessionController on _ChatScreenState {
   void _sendText() {
     final text = _textController.text.trim();
     if (text.isEmpty || !_canSubmit) return;
+    final languageError = roleplayTypedTurnError(text);
+    if (languageError != null) {
+      _showError(languageError);
+      return;
+    }
     final turnId = _newTurnId();
     _update(() {
       _messages.add(RoleplayChatMessage(id: turnId, isUser: true, text: text));

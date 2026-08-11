@@ -1,6 +1,7 @@
 # SpeakFlow
 
-Flutter English-learning client with a FastAPI backend. Registered accounts
+English-learning platform with a Flutter Android client, a FastAPI backend,
+and a React operations dashboard. Registered accounts
 and disposable guests have separate plans, progress, practice data, roleplay
 history, and custom scenarios. The app combines roleplay chat, strict scripted
 pronunciation assessment, target-free spoken delivery feedback, grammar
@@ -9,16 +10,18 @@ support, news, and a durable four-week personalized learning plan (PLP).
 ## Repository layout
 
 ```text
-frontend/   Flutter client, Android project, assets, and widget tests
-backend/    FastAPI application, migrations, ML services, and tests
-handbook/   Architecture, file maps, runtime flows, and maintenance guides
+frontend/          Flutter client, Android project, assets, and widget tests
+backend/           FastAPI application, migrations, ML services, and tests
+admin-dashboard/   React/Vite operations dashboard
+handbook/          Architecture, file maps, runtime flows, and maintenance guides
 ```
 
 The runtime follows a feature-oriented Clean Architecture modular monolith.
 Backend feature boundaries and application ports live under
 `backend/speakflow/`; Flutter transport adapters live with their features and
-are wired through Riverpod in `frontend/lib/app/providers.dart`. See the
-[backend architecture](handbook/02-backend-architecture.md) and
+are wired through Riverpod in `frontend/lib/app/providers.dart`. The dashboard
+polls a separate `/admin` backend surface for system-wide operational data. See
+the [backend architecture](handbook/02-backend-architecture.md) and
 [Flutter architecture](handbook/04-flutter-architecture.md) guides for the
 dependency rules and rationale.
 
@@ -41,7 +44,9 @@ resources needed by the application remain tracked.
 
 The supported development environments are Ubuntu 24.04 and Windows 11 with
 WSL2 Ubuntu 24.04. The backend is pinned to Python 3.12. The Android client
-requires Flutter 3.35 or newer, an Android SDK, JDK 21, and ADB.
+requires Flutter 3.35 or newer, an Android SDK, JDK 21, and ADB. Running the
+optional operations dashboard requires Node.js `^20.19.0` or `>=22.12.0` and
+npm.
 
 Allow at least 15 GiB of free space for the Python environment, Docker data,
 Ollama, and the approximately 2.8 GiB private model bundle. Android Studio and
@@ -52,7 +57,7 @@ Before setup, obtain:
 
 - access to the private `speakflow/randomModels` Hugging Face repository and a
   Hugging Face read token;
-- a `GROQ_API_KEY`;
+- one or more Groq API keys authorized for this application;
 - an optional `NEWSAPI_KEY` if live news categories are required;
 - access to this private source repository.
 
@@ -60,7 +65,7 @@ The bootstrap command installs Python dependencies, authenticates with Hugging
 Face when necessary, downloads and verifies the model bundle, starts
 PostgreSQL 16 with pgvector, pulls Ollama's `embeddinggemma` model, applies
 database migrations, ingests the 28 reviewed teaching objects, and restores
-the versioned 8,223-concept RAG vocabulary snapshot with its 7,227 embeddings.
+the versioned 8,223-concept RAG curriculum snapshot with its 7,227 embeddings.
 
 ### Private model access and automatic download
 
@@ -74,7 +79,7 @@ Hugging Face repository. Before running setup:
 2. create a personal
    [Hugging Face access token](https://huggingface.co/settings/tokens) with the
    **Read** role. Write access is not required;
-3. run `.venv/bin/python backend/setup.py` as shown below and paste the token
+3. run `.venv/bin/python backend/tools/setup_backend.py` as shown below and paste the token
    when prompted.
 
 The token must not be shared, committed, or added to `.env`. Hugging Face saves
@@ -160,19 +165,35 @@ nano .env
 At minimum, set a Groq key in the root `.env`:
 
 ```dotenv
-GROQ_API_KEY=gsk_your_key
+GROQ_API_KEYS=gsk_your_key
 NEWSAPI_KEY=
 ```
 
 Do not commit `.env`. It is ignored by Git and loaded automatically by the
 backend, migrations, and curriculum tools.
 
+For an explicitly approved development key pool, add credentials to the same
+variable in the order they should be selected:
+
+```dotenv
+GROQ_API_KEYS=gsk_primary,gsk_approved_secondary
+```
+
+`GROQ_API_KEYS` accepts any positive number of comma-separated keys, removes
+duplicates, and preserves their order. Interactive Groq features use the first
+key. PLP generation distributes requests round-robin; when one key returns HTTP
+429, that key follows its provider `retry-after` cooldown and the same request
+tries the next available key. The PLP job enters its durable cooldown only when
+no configured key can currently accept the request. Never commit, print, or
+share the resulting `.env`. Return production to one account-owned key in
+`GROQ_API_KEYS` when the temporary approved pool is no longer needed.
+
 #### 4. Create the backend environment
 
 ```bash
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python backend/setup.py
+.venv/bin/python backend/tools/setup_backend.py
 ```
 
 At the Hugging Face prompt, use the personal read token described in
@@ -194,8 +215,9 @@ docker compose ps
 ```
 
 The health response should contain `"status":"ok"`, and the `postgres` service
-should be healthy. Heavy speech, grammar, and TTS models load lazily when their
-features are first used.
+should be healthy. The backend prints progress while eagerly loading its local
+speech, grammar, TTS, and pronunciation models; health becomes ready after the
+warm-up succeeds.
 
 #### 6. Start the Android client
 
@@ -209,6 +231,35 @@ flutter run
 `adb reverse` lets the Android app reach the backend through
 `http://localhost:8000`. Run it again whenever the device reconnects or
 restarts.
+
+#### 7. Start the operations dashboard (optional)
+
+First register the account that will administer the system, then grant it
+administrator access from the backend environment:
+
+```bash
+cd backend
+../.venv/bin/python -m speakflow.features.admin.cli grant admin@example.com
+cd ..
+```
+
+Granting or removing administrator access revokes that account's existing
+sessions, so sign in again through the dashboard. With the backend still
+running:
+
+```bash
+cd admin-dashboard
+npm ci
+npm run dev
+```
+
+Open the URL printed by Vite, normally `http://localhost:5173`. The development
+server proxies relative `/admin` requests to `http://127.0.0.1:8000`.
+The dashboard signs in through `/api/auth/signin`; every `/admin` request then
+requires that bearer session to belong to a registered user whose persisted
+`is_admin` flag is true. Session revocations require a reason and create an
+`admin_audit_events` record. See the
+[operations dashboard guide](handbook/14-admin-dashboard.md).
 
 ### Windows installation with WSL2
 
@@ -351,7 +402,7 @@ nano .env
 Set at least:
 
 ```dotenv
-GROQ_API_KEY=gsk_your_key
+GROQ_API_KEYS=gsk_your_key
 NEWSAPI_KEY=
 ```
 
@@ -360,7 +411,7 @@ Then create the Linux virtual environment and run setup:
 ```bash
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python backend/setup.py
+.venv/bin/python backend/tools/setup_backend.py
 ```
 
 At the Hugging Face prompt, use the personal read token described in
@@ -415,8 +466,18 @@ After the one-time installation:
 6. run `adb reverse tcp:8000 tcp:8000`;
 7. run `flutter run` from `frontend/`.
 
+When operational visibility is needed, also run `npm run dev` from
+`admin-dashboard/`. It refreshes the selected dashboard tab every ten seconds.
+
 The PostgreSQL container uses a named Docker volume, so normal container
 restarts do not erase learner data.
+
+Backend startup eagerly initializes WhisperX/alignment, GECToR, Kokoro, and the
+complete XLSR/GOPT pronunciation scorer before Uvicorn reports the application
+ready. Wait for the `All local runtime models are ready` message; subsequent
+speech, grammar, TTS, and Practice requests reuse those instances. For a
+deliberately lightweight diagnostic process only, set
+`SPEAKFLOW_MODEL_LOADING=lazy`.
 
 ### Verification and common failures
 
@@ -424,6 +485,8 @@ Run backend checks from the repository root:
 
 ```bash
 cd backend
+../.venv/bin/python -m pip install -r requirements-dev.txt
+../.venv/bin/python -m ruff check .
 ../.venv/bin/python -m alembic -c alembic.ini current
 ../.venv/bin/python -m alembic -c alembic.ini heads
 PYTHONPATH=. ../.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
@@ -435,6 +498,16 @@ Run frontend checks:
 cd frontend
 flutter test
 flutter analyze
+```
+
+Run dashboard checks:
+
+```bash
+cd admin-dashboard
+npm ci
+npm run lint
+npm test
+npm run build
 ```
 
 Common setup failures:
@@ -453,12 +526,18 @@ Common setup failures:
   cable, or start the Android emulator.
 - **The app cannot reach the backend:** verify `/health`, then rerun
   `adb reverse tcp:8000 tcp:8000`.
+- **`/health` returns HTTP 503 with `degraded`:** verify PostgreSQL and the PLP
+  worker, then restore the reviewed catalog with `python -m speakflow.features.learning_plan.engine.ingest` and
+  import the verified curriculum snapshot. The probe checks catalog readiness
+  without loading embedding or generation models.
 - **The learning-plan screen says PostgreSQL is unavailable while `/health`
-  says ready:** compare `alembic current` with `alembic heads`, run
-  `alembic upgrade head`, and retry. The basic health probe can reach the
-  database even when application tables are one migration behind.
-- **Groq features fail:** ensure `GROQ_API_KEY` is populated in the root `.env`
-  without quotes or extra spaces, then restart the backend.
+  says `ok`:** compare `alembic current` with `alembic heads`, run
+  `alembic upgrade head`, and retry. Health cannot prove that every expected
+  schema revision has been applied.
+- **Groq features fail:** ensure `GROQ_API_KEYS` contains at least one key in the
+  root `.env` without quotes or extra spaces, then restart the backend. In a
+  pool, invalid credentials are not treated as rate limits: fix or remove the
+  invalid key instead of expecting rotation to hide it.
 
 ## Private model bundle
 
@@ -488,7 +567,7 @@ access runs:
 
 ```bash
 hf auth login
-PYTHONPATH=backend .venv/bin/python -m plp.curriculum_snapshot export
+PYTHONPATH=backend .venv/bin/python -m speakflow.features.learning_plan.engine.curriculum_snapshot export
 PYTHONPATH=backend .venv/bin/python -m tools.model_bundle inventory
 PYTHONPATH=backend .venv/bin/python -m tools.model_bundle upload
 ```
@@ -511,9 +590,39 @@ repository.
   fluency and pitch-variation estimates. It does not claim phone accuracy or
   completeness.
 - The Arabic-L1 phone models were evaluated on four L2-ARCTIC speakers. Orange
-  feedback means uncertainty; only conservative red phones are diagnoses.
+  feedback means uncertainty and may receive non-diagnostic practice guidance;
+  only conservative red phones or independent transcript-plus-phone
+  contradictions are corrections.
   Likely substitutions are reported only after the separate CTC
   counterfactual-confidence gate passes.
+- Acoustic quality numbers are diagnostic estimates, not calibrated pass/fail
+  probabilities. Free Practice accepts a complete, transcript-verified target
+  only when XLSR's strongest hypothesis independently supports each expected
+  phone and no phone has a conservative red diagnosis. Learning-plan sound
+  checks apply that policy only to the IPA sound assigned by the activity, so
+  an uncertain vowel cannot block a `/p/` lesson. An orange `/p/` can pass when
+  XLSR still identifies `/p/`; the UI then shows the cross-model verification
+  as green while retaining the raw orange acoustic status for diagnostics. An
+  alternative phone from only one recognizer is inconclusive. When the word
+  recognizer also disagrees, the two-model contradiction is shown as a
+  correction.
+- Assessed PLP pronunciation targets are segmental IPA phones that occur in
+  every assigned phrase. Bare stress, rhythm, prominence, reduction, and
+  aspiration claims are not treated as verified mastery because the current
+  pass policy has no calibrated authority for those properties. Contrast drills
+  declare every assessed phone, such as `/p/ and /b/`.
+- PLP pronunciation scores mean verified assigned-target mastery: a verified
+  target contributes 100 and an unverified or failed target contributes 0.
+  Whole-utterance acoustic quality remains a separately labelled diagnostic
+  score and never becomes skill evidence. Weekly pronunciation checkpoints keep
+  an actual recorded pronunciation activity. Each assigned target can create
+  evidence once on its first conclusive initial result; a drill's normal evidence
+  weight is divided across its targets so longer word lists are not over-weighted.
+- A PLP target that remains inconclusive for three recordings is allowed to
+  complete for progression, but it is explicitly returned in durable lesson
+  progress as unverified and creates no pronunciation-mastery evidence. This
+  prevents model uncertainty from permanently locking a learner out of the rest
+  of a lesson without making the target appear verified after reopening it.
 
 ## Personalized learning plan
 
@@ -523,6 +632,15 @@ reviewed curriculum own sequence, prerequisites, activities, grading, and
 answers. A constrained Groq call using `openai/gpt-oss-120b` supplies weekly
 scenario wording; the local compiler validates and atomically publishes all
 five lessons in a week.
+The reviewed mission catalog distinguishes a scenario's direct context family
+from broader interests that can merely theme it. Direct goal-and-context
+matches rank first. Each CEFR outcome must retain the source evidence needed to
+complete the task even as instructional scaffolding fades at higher levels.
+Mission subjects prefer recognizable real places, works, sports, tools,
+institutions, and natural phenomena. Every assessed fact remains in the lesson
+input; changing prices, schedules, availability, entry requirements, service
+incidents, and similar details are dated from supplied evidence or explicitly
+labelled as simulated practice data.
 Answers remain server-side until an attempt is graded, and completion/XP are
 server-authoritative. Groq supplies roleplay responses, trusted-correction
 explanations, news rewriting, pronunciation drill wording, and the constrained
@@ -536,11 +654,49 @@ the ignored `backend/.models/` directory.
 The RAG curriculum has two reproducible layers:
 
 - 28 project-authored reviewed teaching objects covering seven domains at
-  A1–B2, ingested from `backend/plp/seed.py`;
+  A1–B2, ingested from `backend/speakflow/features/learning_plan/engine/seed.py`;
 - a versioned private snapshot containing 8,223 source-attributed CEFR-J
-  concepts, including 7,227 retrieval-ready vocabulary records enriched with
-  Words-CEFR frequency, WordNet definitions, CMUdict IPA, and the exact
-  `embeddinggemma:latest` 768D vectors.
+  concepts: 7,799 vocabulary records representing 6,863 distinct case-folded
+  headwords, plus 424 grammar records. Of those records, 7,227 vocabulary rows
+  have lexical enrichment and the exact `embeddinggemma:latest` 768D vector;
+  enrichment is candidate evidence, not by itself permission to teach the row.
+
+A code-owned review overlay links 129 exact existing vocabulary concepts to
+previously sparse learner interests. Each link is keyed by CEFR level,
+headword, and part of speech, so it cannot silently change the source's level
+or attach every sense of a word. The current managed snapshot plus this review
+provides at least eight directly relevant, pronounceable, definition-safe terms
+for every supported A1–B2 and interest combination (44 cells). A shared runtime
+policy then requires a supported lexical part of speech, CMUdict pronunciation,
+and a short non-circular definition anchored to the source meaning. The current
+snapshot contains 5,433 rows that pass those teaching checks: 1,398 topical and
+4,035 untagged general-context candidates. Exact-interest terms are retrieved
+before broader related themes; related Music/History themes only fill a remaining
+shortage. An untagged general word is eligible only when its embedding is strongly
+relevant to the current weekly scenario, and it receives a separate quota so it
+cannot displace all topical vocabulary. Reviewed learner glosses protect ambiguous
+dictionary entries while retaining the original lexical source in provenance.
+
+Every successfully generated week teaches exactly two safe source-backed terms, even when the
+planner did not schedule a dedicated vocabulary-domain lesson; in that case the
+terms are pre-taught at the start of the first teaching lesson. Terms already used
+in the current revision are excluded, while terms from an older revision of the
+same plan are retained only as lower-priority review candidates. Given the audited
+minimum of eight safe direct terms per supported level/interest cell, a four-week
+plan can introduce eight distinct terms without fabricating new vocabulary.
+
+The overlay is application code, not a database seed. Existing installations
+pick it up after a backend restart; they do not need to re-import or re-embed
+the curriculum. Fresh installations still restore the normal snapshot during
+setup.
+
+CEFR, interest, and goal have deliberately different responsibilities. CEFR is
+a hard vocabulary eligibility filter. Interest supplies topical retrieval tags.
+The learner goal selects and orders missions, scenarios, and lesson domains; it
+is not copied onto thousands of dictionary records as a vocabulary label. The
+weekly scenario query is the controlled bridge from that goal/context to safe
+untagged general vocabulary. Runtime eligibility and ranking changes are code,
+so an existing healthy snapshot needs only a backend restart, not reseeding.
 
 The snapshot is restored into PostgreSQL's `curriculum_concepts` table during
 setup. It is part of the private Hugging Face bundle rather than Git because it
@@ -552,7 +708,8 @@ of silently creating an incomplete learning plan.
 
 Email/password registration uses scrypt password hashes. Login returns an
 opaque random bearer token; only its SHA-256 hash is stored in PostgreSQL.
-Registered sessions last 30 days and can be revoked independently. Guest
+Registered learner sessions last 30 days; administrator sign-ins last eight
+hours. Sessions can be revoked independently. Guest
 sessions last seven days, receive their own user UUID, and are deleted with
 their learning data when the guest signs out. Expired abandoned guests are
 pruned when a new guest is created.
@@ -563,6 +720,12 @@ session IDs are unique per user rather than globally. The WebSocket uses the
 same bearer identity as REST. Device-local practice words and phoneme progress
 are stored in user-namespaced files. Resetting learning data preserves a
 registered account and its login; signing out does not erase registered data.
+
+Administrator access is a separate persisted capability on a registered user.
+It can be granted or removed only through the local backend CLI, which revokes
+existing sessions and records the privilege change. `/admin` routes reject
+missing sessions with 401 and non-admin sessions with 403. Operational error
+responses are sanitized; detailed exceptions remain in backend logs.
 
 ## Roleplay sessions
 
@@ -578,7 +741,20 @@ interaction, vocabulary, and scenario-rubric evaluation. Custom-scenario
 creation uses the same level to generate an editable draft containing roles,
 an opening, observable goals, useful sentence starters, and situation-specific
 evaluation criteria. The learner reviews and can edit these fields and weights
-for conversation goals before the scenario snapshot is persisted.
+before the scenario is persisted. Saved custom scenarios can later be edited or
+deleted. Edits affect only future sessions; active and historical sessions keep
+the immutable scenario snapshot with which they started.
+
+Typed roleplay turns must contain Latin-script English text. Flutter rejects
+Arabic/non-Latin input immediately, and the WebSocket repeats the same check
+before grammar correction, provider generation, or persistence. Learners can
+use Language Help to translate Arabic into an English option before sending.
+The backend also rejects unmistakable structural nonsense locally before a
+provider call. This conservative gate covers malformed tokens, keyboard runs,
+and function-word-only fragments while preserving names, acronyms, normal short
+answers, and context-dependent phrases. Ambiguous plausible English still goes
+through the contextual dialogue classifier; objective evidence is accepted only
+when it is explicitly grounded in the learner's turn.
 
 Final feedback reports task achievement, each scenario-specific criterion,
 interaction, grammar, vocabulary, free-speech fluency, and
@@ -586,10 +762,18 @@ pitch variation, and recognition-confidence clarity as independent scores.
 Pitch variation is a descriptive vocal-range proxy, not a reference-based
 prosody or intonation diagnosis. The roleplay system does not combine
 unlike learning dimensions into an overall number. Spoken categories appear
-only when spoken evidence exists, and the summary labels category scores as
-provisional until the evidence minimum is met. Recognition uncertainty is
+only when spoken evidence exists. Task progress remains visible from exact
+objective evidence, while language scores stay absent until the conversation
+meets the turn/word minimum. Grammar is scored only when the local corrector
+actually evaluated sufficient transcript coverage; a model outage never becomes
+a perfect score. Delivery categories require their separate spoken-evidence
+minimums. The summary shows evidence status, scenario-specific rubric evidence,
+and trusted grammar refinements. Recognition uncertainty is
 presented as a word to verify in scripted pronunciation practice, not as a
 diagnosed pronunciation error. Zero-turn sessions are abandoned; completed or
-interrupted sessions retain their turn evidence in PostgreSQL. Starting over
+interrupted sessions retain their turn evidence in PostgreSQL. Turn and session
+idempotency keys reject changed content, repeated turns reuse the stored reply,
+and finalization shares the cross-worker session lease with turn generation.
+Starting over
 deletes learner-owned PLP and roleplay data through database cascades while
-preserving reviewed curriculum. The current migration head is `20260802_09`.
+preserving reviewed curriculum. The current migration head is `20260809_12`.

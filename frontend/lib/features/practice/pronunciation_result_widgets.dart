@@ -43,7 +43,7 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
       child: Column(
         children: [
           Text(
-            'Pronunciation Score',
+            'Acoustic quality estimate',
             style: GoogleFonts.inter(fontSize: 13, color: _textSecondary),
           ),
           const SizedBox(height: 12),
@@ -89,7 +89,10 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
             const SizedBox(height: 20),
             const Divider(color: Color(0xFF1E2D45), height: 1),
             const SizedBox(height: 16),
-            _buildScoreBar('Accuracy', _scores!['accuracy'] as num?),
+            _buildScoreBar(
+              'Acoustic accuracy estimate',
+              _scores!['accuracy'] as num?,
+            ),
             const SizedBox(height: 10),
             _buildScoreBar('Fluency', _scores!['fluency'] as num?),
             const SizedBox(height: 10),
@@ -168,7 +171,12 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
               final idx = entry.key;
               final charData = entry.value as Map<String, dynamic>;
               final String char = charData['char'] ?? '?';
-              final status = charData['status']?.toString() ?? 'warning';
+              final acousticStatus =
+                  charData['acoustic_status']?.toString() ??
+                  charData['status']?.toString() ??
+                  'warning';
+              final status =
+                  charData['display_status']?.toString() ?? acousticStatus;
               final color = switch (status) {
                 'correct' => _success,
                 'incorrect' => _error,
@@ -179,8 +187,18 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
               final likelyIpa = charData['likely_ipa']?.toString();
               final closestIpa = charData['closest_ipa']?.toString();
               final errorType = charData['error_type']?.toString();
+              final verificationReason = charData['verification_reason']
+                  ?.toString();
               final tooltip = quality is! num
                   ? 'Omitted / not acoustically scored'
+                  : status == 'correct' && acousticStatus == 'warning'
+                  ? 'Verified as /$char/ by transcript and phone identity • acoustic quality ${quality.round()}%'
+                  : status == 'incorrect' &&
+                        verificationReason ==
+                            'transcript_and_phone_identity_contradict' &&
+                        closestIpa != null &&
+                        closestIpa.isNotEmpty
+                  ? 'Verified correction: /$char/ sounded closer to /$closestIpa/ • acoustic quality ${quality.round()}%'
                   : status == 'incorrect' &&
                         errorType == 'substitution' &&
                         likelyIpa != null &&
@@ -191,8 +209,8 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
                   : status == 'warning' &&
                         closestIpa != null &&
                         closestIpa.isNotEmpty
-                  ? 'Target /$char/ needs attention • closest acoustic guess /$closestIpa/ • quality ${quality.round()}%'
-                  : '${status == 'warning' ? 'Needs attention' : status} • quality ${quality.round()}%';
+                  ? 'Target /$char/ is uncertain • closest acoustic guess /$closestIpa/ • quality ${quality.round()}%'
+                  : '${status == 'warning' ? 'Uncertain estimate' : status} • quality ${quality.round()}%';
 
               return Tooltip(
                     message: tooltip,
@@ -234,19 +252,34 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
   }
 
   Widget _buildFeedbackCard() {
+    final verified = _feedbackKind == 'verified' || _targetPassed;
+    final correction = _feedbackKind == 'correction';
+    final guidance = _feedbackKind == 'guidance';
+    final cardColor = verified
+        ? _success
+        : correction || guidance
+        ? _warning
+        : _accent;
+    final title = verified
+        ? 'Verified'
+        : correction
+        ? 'How to improve'
+        : guidance
+        ? 'Practice guidance'
+        : 'Assessment';
     return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                _accent.withValues(alpha: 0.1),
-                _primary.withValues(alpha: 0.06),
+                cardColor.withValues(alpha: 0.1),
+                cardColor.withValues(alpha: 0.04),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _accent.withValues(alpha: 0.25)),
+            border: Border.all(color: cardColor.withValues(alpha: 0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,20 +289,20 @@ extension _PronunciationResultWidgets on _PronunciationScreenState {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_accent, _primary],
-                      ),
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(
-                      Icons.psychology_rounded,
+                    child: Icon(
+                      verified
+                          ? Icons.verified_rounded
+                          : Icons.psychology_rounded,
                       color: Colors.white,
                       size: 16,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'How to improve',
+                    title,
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

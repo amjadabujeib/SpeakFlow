@@ -1,21 +1,37 @@
 import React, { useState } from 'react';
+import { revokeSessions } from '../adminApi';
 
-const UserManagement = ({ users, onRevoke }) => {
+const UserManagement = ({ users, token, onAuthorizationLost, onRevoke }) => {
   const [revoking, setRevoking] = useState(null);
 
   if (!users) return null;
 
-  const handleRevoke = async (userId) => {
-    setRevoking(userId);
+  const handleRevoke = async (user) => {
+    const reason = window.prompt(
+      `Why should all active sessions for ${user.email} be revoked?`,
+    )?.trim();
+    if (!reason) return;
+    if (reason.length < 3 || reason.length > 200) {
+      window.alert('Enter a reason between 3 and 200 characters.');
+      return;
+    }
+    if (!window.confirm(
+      `Revoke every active session for ${user.email}? This will sign the user out on all devices.`,
+    )) return;
+
+    setRevoking(user.id);
     try {
-      const response = await fetch(`/admin/users/${userId}/revoke`, { method: 'POST' });
-      if (response.ok) {
-        if (onRevoke) onRevoke();
+      const result = await revokeSessions(user.id, reason, token);
+      window.alert(
+        `Revoked ${result.revoked_count} session(s). Audit event: ${result.audit_event_id}`,
+      );
+      onRevoke?.();
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) {
+        onAuthorizationLost();
       } else {
-        alert('Failed to revoke sessions');
+        window.alert(error.message || 'Session revocation failed.');
       }
-    } catch (e) {
-      alert('Error revoking sessions: ' + e.message);
     } finally {
       setRevoking(null);
     }
@@ -24,8 +40,8 @@ const UserManagement = ({ users, onRevoke }) => {
   return (
     <div className="glass-card" style={{ gridColumn: 'span 2' }}>
       <h2>User Management</h2>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+
+      <div className="user-stats">
         <div>
           <div className="stat-value">{users.total_registered}</div>
           <div className="stat-label">Registered Accounts</div>
@@ -35,13 +51,12 @@ const UserManagement = ({ users, onRevoke }) => {
           <div className="stat-label">Guest Accounts</div>
         </div>
         <div>
-          <div className="stat-value" style={{ color: 'var(--secondary-color)' }}>{users.active_sessions}</div>
+          <div className="stat-value accent-stat">{users.active_sessions}</div>
           <div className="stat-label">Active Sessions</div>
         </div>
       </div>
 
-      <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>Recent Registrations</h3>
-      
+      <h3 className="section-label">Recent Registrations</h3>
       <div className="glass-table-container">
         <table className="glass-table">
           <thead>
@@ -53,31 +68,33 @@ const UserManagement = ({ users, onRevoke }) => {
             </tr>
           </thead>
           <tbody>
-            {users.recent_registrations.map(user => (
+            {users.recent_registrations.map((user) => (
               <tr key={user.id}>
-                <td style={{ fontFamily: 'monospace' }}>{user.id}</td>
+                <td className="monospace-cell">{user.id}</td>
                 <td>
                   <div>{user.email}</div>
-                  <span className={`status-badge ${user.type === 'registered' ? 'healthy' : 'warning'}`} style={{ fontSize: '0.65rem', marginTop: '4px' }}>
+                  <span
+                    className={`status-badge ${user.type === 'registered' ? 'healthy' : 'warning'}`}
+                  >
                     {user.type}
                   </span>
                 </td>
                 <td>{new Date(user.created_at).toLocaleString()}</td>
                 <td>
-                  <button 
-                    className="btn btn-danger" 
-                    style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}
-                    onClick={() => handleRevoke(user.id)}
+                  <button
+                    className="btn btn-danger"
+                    type="button"
+                    onClick={() => handleRevoke(user)}
                     disabled={revoking === user.id}
                   >
-                    {revoking === user.id ? 'Revoking...' : 'Revoke'}
+                    {revoking === user.id ? 'Revoking…' : 'Revoke sessions'}
                   </button>
                 </td>
               </tr>
             ))}
             {users.recent_registrations.length === 0 && (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>No recent registrations</td>
+                <td colSpan="4" className="empty-cell">No recent registrations</td>
               </tr>
             )}
           </tbody>

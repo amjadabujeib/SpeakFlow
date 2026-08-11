@@ -11,6 +11,10 @@ SpeakFlow is an English-learning application with six connected capabilities:
 - goal-driven roleplay over text or speech;
 - CEFR-adapted news reading.
 
+It also includes a separate operations dashboard for inspecting aggregate
+users, sessions, learning-plan jobs, roleplay activity, runtime-model state, and
+recent PLP failures. This dashboard is an operator tool, not a learner feature.
+
 The features share identity and learner profile data, but they do not share a
 single undifferentiated service or UI file. Each feature owns its contracts and
 presentation, while composition roots connect the parts.
@@ -22,20 +26,28 @@ The system communicates in this order:
 1. The learner interacts with the Flutter Android client.
 2. Flutter sends JSON requests over HTTP/HTTPS and opens an authenticated
    WebSocket for live roleplay.
-3. FastAPI authenticates the learner and coordinates the requested feature.
-4. FastAPI reads and writes authoritative data in PostgreSQL with pgvector.
-5. When a feature needs them, FastAPI calls the local ML bundle, Groq, Ollama,
+3. An operator may separately open the React dashboard, whose Vite development
+   server proxies `/api/auth` and `/admin` requests to FastAPI.
+4. FastAPI authenticates learner `/api` requests and coordinates the requested
+   feature; it separately requires persisted administrator access for every
+   `/admin` request.
+5. FastAPI reads and writes authoritative data in PostgreSQL with pgvector.
+6. When a feature needs them, FastAPI calls the local ML bundle, Groq, Ollama,
    or the optional news provider.
 
 In local Android development, ADB reverses device port 8000 to the host backend.
 The Flutter client therefore uses `http://localhost:8000` while the FastAPI
-process listens on `0.0.0.0:8000`.
+process listens on `127.0.0.1:8000` by default.
 
 ## Runtime processes
 
 - **Flutter app**
   - **Responsibility:** UI, navigation, input capture, local caches
   - **Persistent state:** app documents directory
+
+- **React operations dashboard**
+  - **Responsibility:** authenticated aggregate diagnostics and audited session revocation
+  - **Persistent state:** session storage; active-tab responses live in browser memory
 
 - **FastAPI process**
   - **Responsibility:** contracts, authorization, orchestration, scoring
@@ -72,10 +84,10 @@ Dependencies point inward:
    implementations and connect them at startup.
 
 The codebase is intentionally pragmatic. Authentication has explicit domain,
-application, infrastructure, and presentation layers. The older and much
-larger learning-plan engine remains a cohesive `plp` package while its FastAPI
-router lives in the learning-plan feature. This keeps stable persistence and
-migration imports intact without returning orchestration to `main.py`.
+application, infrastructure, and presentation layers. The larger learning-plan
+implementation is feature-owned under `features/learning_plan/engine`; narrow
+application services separate its production callers from the private
+transactional composition.
 
 ## Design patterns used
 
@@ -83,7 +95,9 @@ migration imports intact without returning orchestration to `main.py`.
 
 `backend/main.py` selects concrete routers and runtime functions. It does not
 implement feature behavior. `frontend/lib/app/providers.dart` creates and
-shares the client-side API adapters.
+shares the learner client-side API adapters.
+`admin-dashboard/src/components/Dashboard.jsx` is the smaller dashboard
+composition point for tab polling.
 
 ### Repository
 
@@ -105,8 +119,9 @@ validated before publication.
 
 ### Facade
 
-`PlpService` composes focused mixins behind one stable service instance.
-`plp.schemas`, `plp.weekly_mission`, and similar modules expose deliberate
+`LearningPlanEngine` composes focused persistence behaviors behind narrow
+learning-plan, lifecycle, pronunciation-assignment, and roleplay services.
+`speakflow.features.learning_plan.engine.schemas`, `speakflow.features.learning_plan.engine.weekly_mission`, and similar modules expose deliberate
 public import surfaces while implementation is split into smaller files.
 
 ### Observer
@@ -133,6 +148,12 @@ The client may request an action and display a result, but it does not decide:
 - whether generated learning content is valid enough to publish.
 
 These decisions remain in backend services and deterministic validators.
+
+The operations dashboard deliberately crosses learner boundaries to show
+global aggregates. Backend middleware authenticates its bearer token, checks
+the current `is_admin` database value, rate-limits the request, and attributes
+privileged writes to that administrator. CORS or hidden UI controls are not
+used as authorization boundaries.
 
 ## Why not microservices
 

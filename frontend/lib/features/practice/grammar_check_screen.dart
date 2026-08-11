@@ -1,5 +1,6 @@
 // lib/features/practice/grammar_check_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -22,14 +23,14 @@ const _textPrimary = Color(0xFFF1F5FF);
 const _textSecondary = Color(0xFF8896B0);
 const _border = Color(0xFF1E2D45);
 
-class GrammarCheckScreen extends StatefulWidget {
+class GrammarCheckScreen extends ConsumerStatefulWidget {
   const GrammarCheckScreen({super.key});
 
   @override
-  State<GrammarCheckScreen> createState() => _GrammarCheckScreenState();
+  ConsumerState<GrammarCheckScreen> createState() => _GrammarCheckScreenState();
 }
 
-class _GrammarCheckScreenState extends State<GrammarCheckScreen> {
+class _GrammarCheckScreenState extends ConsumerState<GrammarCheckScreen> {
   void _update(VoidCallback change) => setState(change);
 
   final TextEditingController _textCtrl = TextEditingController();
@@ -56,9 +57,7 @@ class _GrammarCheckScreenState extends State<GrammarCheckScreen> {
       _errorMsg = null;
     });
 
-    final result = await AppDependencies.instance.languageTools.checkGrammar(
-      text,
-    );
+    final result = await ref.read(languageToolsApiProvider).checkGrammar(text);
 
     if (!mounted || request != _requestSerial) return;
 

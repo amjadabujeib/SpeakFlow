@@ -3,10 +3,10 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../shared/widgets/dictionary_popup.dart';
-import '../../core/providers/app_state.dart';
+import 'widgets/dictionary_popup.dart';
 import '../../app/providers.dart';
 
 part 'news_models.dart';
@@ -17,17 +17,17 @@ part 'news_player_widgets.dart';
 // Data model
 // ---------------------------------------------------------------------------
 
-class NewsTab extends StatefulWidget {
+class NewsTab extends ConsumerStatefulWidget {
   final NewsLoader? loader;
 
   const NewsTab({super.key, this.loader});
 
   @override
-  State<NewsTab> createState() => _NewsTabState();
+  ConsumerState<NewsTab> createState() => _NewsTabState();
 }
 
-class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
-  final AppState _appState = AppState();
+class _NewsTabState extends ConsumerState<NewsTab>
+    with TickerProviderStateMixin {
   final AudioPlayer _audioPlayer = AudioPlayer();
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration>? _durationSubscription;
@@ -61,20 +61,9 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     }
   }
 
-  void _onStateChange() {
-    if (!mounted) return;
-    if (_loadedLevel != _appState.cefrLevel) {
-      _loadNews(resetPage: true);
-    } else {
-      setState(() {});
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    _appState.addListener(_onStateChange);
-
     _playerSlideController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 380),
@@ -111,7 +100,6 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _appState.removeListener(_onStateChange);
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _completionSubscription?.cancel();
@@ -141,7 +129,8 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     _playerSlideController.reverse();
     _eqController.stop();
     try {
-      final audio = await AppDependencies.instance.languageTools
+      final audio = await ref
+          .read(languageToolsApiProvider)
           .synthesizeSpeech(article.body);
       if (!mounted || _bufferingArticleId != articleId) return;
       // Audio is ready — now transition to playing state
@@ -194,7 +183,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     final category = _selectedCategory;
     final previousPage = _categoryPages[category.value] ?? 1;
     final page = resetPage ? 1 : (nextPage ? previousPage + 1 : previousPage);
-    final level = _appState.cefrLevel;
+    final level = ref.read(appStateProvider).cefrLevel;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -206,7 +195,7 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
     _playerSlideController.reverse();
     try {
       final payload =
-          await (widget.loader ?? AppDependencies.instance.news.articles)(
+          await (widget.loader ?? ref.read(newsApiProvider).articles)(
             category: category.value,
             level: level,
             page: page,
@@ -268,6 +257,14 @@ class _NewsTabState extends State<NewsTab> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String>(appStateProvider.select((state) => state.cefrLevel), (
+      previous,
+      next,
+    ) {
+      if (previous != next && _loadedLevel != next) {
+        unawaited(_loadNews(resetPage: true));
+      }
+    });
     return Scaffold(
       backgroundColor: _kBackground,
       body: Stack(

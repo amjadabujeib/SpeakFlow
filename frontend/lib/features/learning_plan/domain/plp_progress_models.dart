@@ -2,12 +2,38 @@ part of 'plp_models.dart';
 
 enum StoredLessonStatus { inProgress, completed }
 
+class PronunciationActivityProgress {
+  final Set<String> verifiedTargetKeys;
+  final Set<String> unverifiedTargetKeys;
+
+  const PronunciationActivityProgress({
+    this.verifiedTargetKeys = const {},
+    this.unverifiedTargetKeys = const {},
+  });
+
+  factory PronunciationActivityProgress.fromJson(JsonMap json, String path) =>
+      PronunciationActivityProgress(
+        verifiedTargetKeys: _optionalStringList(
+          json,
+          'verified_target_keys',
+          path,
+        ).toSet(),
+        unverifiedTargetKeys: _optionalStringList(
+          json,
+          'unverified_target_keys',
+          path,
+        ).toSet(),
+      );
+}
+
 class LessonProgress {
   final StoredLessonStatus status;
   final double progressFraction;
   final int? bestScore;
   final int attempts;
   final List<String> completedActivityIds;
+  final Map<String, PronunciationActivityProgress>
+  pronunciationActivityProgress;
   final DateTime? completedAt;
 
   const LessonProgress({
@@ -16,6 +42,7 @@ class LessonProgress {
     required this.bestScore,
     required this.attempts,
     this.completedActivityIds = const [],
+    this.pronunciationActivityProgress = const {},
     required this.completedAt,
   });
 
@@ -39,6 +66,27 @@ class LessonProgress {
       'completed_activity_ids',
       path,
     );
+    final rawPronunciationProgress = json['pronunciation_activity_progress'];
+    if (rawPronunciationProgress != null && rawPronunciationProgress is! Map) {
+      throw PlpFormatException(
+        '$path.pronunciation_activity_progress must be an object',
+      );
+    }
+    final pronunciationActivityProgress =
+        <String, PronunciationActivityProgress>{};
+    for (final entry
+        in (rawPronunciationProgress as Map? ?? const {}).entries) {
+      if (entry.value is! Map) {
+        throw PlpFormatException(
+          '$path.pronunciation_activity_progress.${entry.key} must be an object',
+        );
+      }
+      pronunciationActivityProgress[entry.key
+          .toString()] = PronunciationActivityProgress.fromJson(
+        Map<String, dynamic>.from(entry.value as Map),
+        '$path.pronunciation_activity_progress.${entry.key}',
+      );
+    }
     final completedAtText = _optionalString(json, 'completed_at', path);
     final completedAt = completedAtText == null
         ? null
@@ -69,6 +117,7 @@ class LessonProgress {
       bestScore: bestScore,
       attempts: attempts,
       completedActivityIds: completedActivityIds,
+      pronunciationActivityProgress: pronunciationActivityProgress,
       completedAt: completedAt,
     );
   }

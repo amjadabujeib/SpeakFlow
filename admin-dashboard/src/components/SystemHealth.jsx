@@ -30,9 +30,16 @@ const SystemHealth = ({ health }) => {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-          <span>Groq Quota</span>
-          <span style={{ color: 'var(--warning)' }}>
-            {health.groq_quota}
+          <span>Groq Configuration</span>
+          <span style={{ color: health.groq === 'configured' ? 'var(--success)' : 'var(--warning)' }}>
+            {health.groq}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <span>Reviewed Curriculum</span>
+          <span style={{ color: health.curriculum === 'ready' ? 'var(--success)' : 'var(--danger)' }}>
+            {health.curriculum}
           </span>
         </div>
       </div>

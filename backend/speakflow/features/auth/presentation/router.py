@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException, status
 
+from speakflow.features.auth.application.errors import (
+    AuthEmailConflictError,
+    AuthInvalidCredentialsError,
+    AuthUnavailableError,
+)
+from speakflow.features.auth.infrastructure.service import auth_service
 from speakflow.features.auth.presentation.schemas import (
     AuthSessionView,
     AuthUserView,
@@ -9,13 +15,6 @@ from speakflow.features.auth.presentation.schemas import (
     SignInInput,
     SignUpInput,
 )
-from speakflow.features.auth.application.errors import (
-    AuthEmailConflictError,
-    AuthInvalidCredentialsError,
-    AuthUnavailableError,
-)
-from speakflow.features.auth.infrastructure.service import auth_service
-
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 

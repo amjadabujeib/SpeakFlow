@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/providers.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/providers/app_state.dart';
 import '../data/plp_repository.dart';
 
-class PlpOnboardingScreen extends StatefulWidget {
+class PlpOnboardingScreen extends ConsumerStatefulWidget {
   final PlpRepository repository;
   final ValueChanged<String>? onGenerationStarted;
   final bool allowBack;
@@ -17,10 +18,11 @@ class PlpOnboardingScreen extends StatefulWidget {
   });
 
   @override
-  State<PlpOnboardingScreen> createState() => _PlpOnboardingScreenState();
+  ConsumerState<PlpOnboardingScreen> createState() =>
+      _PlpOnboardingScreenState();
 }
 
-class _PlpOnboardingScreenState extends State<PlpOnboardingScreen> {
+class _PlpOnboardingScreenState extends ConsumerState<PlpOnboardingScreen> {
   String _level = 'B1';
   String _nativeLanguage = 'Arabic';
   final Set<String> _goals = {'Speak confidently'};
@@ -75,7 +77,7 @@ class _PlpOnboardingScreenState extends State<PlpOnboardingScreen> {
       });
       final jobId = await widget.repository.generatePlan();
       if (!mounted) return;
-      AppState()
+      ref.read(appStateProvider)
         ..setMotherTongue(_nativeLanguage)
         ..setCefrLevel(_level)
         ..setInterests(_interests.toList());

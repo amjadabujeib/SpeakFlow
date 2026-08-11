@@ -14,13 +14,12 @@ from speakflow.features.auth.application.errors import (
     AuthInvalidCredentialsError,
     AuthUnavailableError,
 )
-from plp.identity import bind_user
 from speakflow.features.auth.infrastructure.service import auth_service
+from speakflow.features.learning_plan.engine.identity import bind_user
+
 from .rate_limit import ProcessSharedRateLimiter as _RateLimiter
 
-
 _PUBLIC_API_PATHS = {
-    "/api/tts",
     "/api/news/image",
 }
 _UPLOAD_BODY_LIMIT = 16 * 1024 * 1024
@@ -85,12 +84,60 @@ def _rate_limit_rule(method: str, path: str) -> tuple[int, int] | None:
     if path in {"/api/auth/signup", "/api/auth/guest"}:
         return 6, 60
     if path == "/api/tts":
-        return (30, 60) if method == "GET" else (60, 60)
+        return 60, 60
     if path == "/api/news/image":
         return 30, 60
+    if method == "GET" and path == "/api/news":
+        return 12, 60
+    if method == "POST" and path in {
+        "/api/grammar/check",
+        "/api/vocabulary/lookup",
+        "/api/translation/arabic",
+    }:
+        return 30, 60
+    if method == "POST" and path == "/api/roleplay/scenarios/draft":
+        return 10, 60
+    if (
+        method == "POST"
+        and path.startswith("/api/roleplay/sessions/")
+        and path.endswith("/escape-route")
+    ):
+        return 30, 60
+    if method == "POST" and path == "/api/plp/generations":
+        return 10, 60
     if path in {"/api/pronunciation", "/api/speaking/transcribe"}:
         return 20, 60
+    if (
+        method == "POST"
+        and path.startswith("/admin/users/")
+        and path.endswith("/revoke")
+    ):
+        return 10, 60
+    if path.startswith("/admin/"):
+        return 180, 60
     return None
+
+
+def _request_rate_limit_response(
+    request: Request,
+    *,
+    key: str,
+    rule: tuple[int, int] | None,
+) -> JSONResponse | None:
+    if rule is None:
+        return None
+    retry_after = _rate_limiter.retry_after(
+        f"{key}:{request.method}:{request.url.path}",
+        limit=rule[0],
+        window=rule[1],
+    )
+    if not retry_after:
+        return None
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "too many requests; try again shortly"},
+        headers={"Retry-After": str(retry_after)},
+    )
 
 
 def create_application(
@@ -157,26 +204,31 @@ def create_application(
                         status_code=413,
                         content={"detail": "request body is too large"},
                     )
+        is_admin_path = path == "/admin" or path.startswith("/admin/")
+        is_api_path = path.startswith("/api/")
         rule = _rate_limit_rule(request.method, path)
-        if rule is not None:
-            client_host = request.client.host if request.client else "unknown"
-            retry_after = _rate_limiter.retry_after(
-                f"{client_host}:{request.method}:{path}",
-                limit=rule[0],
-                window=rule[1],
+        client_host = request.client.host if request.client else "unknown"
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        if not is_api_path and not is_admin_path:
+            return await call_next(request)
+        if path.startswith("/api/auth/"):
+            limited = _request_rate_limit_response(
+                request,
+                key=f"ip:{client_host}",
+                rule=rule,
             )
-            if retry_after:
-                return JSONResponse(
-                    status_code=429,
-                    content={"detail": "too many requests; try again shortly"},
-                    headers={"Retry-After": str(retry_after)},
-                )
-        if (
-            request.method == "OPTIONS"
-            or not path.startswith("/api/")
-            or path.startswith("/api/auth/")
-            or (request.method == "GET" and path in _PUBLIC_API_PATHS)
-        ):
+            if limited is not None:
+                return limited
+            return await call_next(request)
+        if request.method == "GET" and path in _PUBLIC_API_PATHS:
+            limited = _request_rate_limit_response(
+                request,
+                key=f"ip:{client_host}",
+                rule=rule,
+            )
+            if limited is not None:
+                return limited
             return await call_next(request)
 
         scheme, _, token = request.headers.get("authorization", "").partition(" ")
@@ -192,6 +244,21 @@ def create_application(
         except AuthUnavailableError as exc:
             return JSONResponse(status_code=503, content={"detail": str(exc)})
 
+        if is_admin_path and not user.is_admin:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "administrator access is required"},
+            )
+
+        limited = _request_rate_limit_response(
+            request,
+            key=f"user:{user.user_id}",
+            rule=rule,
+        )
+        if limited is not None:
+            return limited
+
+        request.state.authenticated_user = user
         with bind_user(user.user_id):
             return await call_next(request)
 

@@ -5,6 +5,8 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
     final data = activity.data;
     final tips = (data['tips'] as List).cast<String>();
     final practiceItems = data['practice_items'] as List;
+    final hasUnverifiedTargets =
+        _unverifiedPronunciationTargets[activity.id]?.isNotEmpty ?? false;
     return _activityPage(
       activity: activity,
       children: [
@@ -54,23 +56,26 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
         const _SectionTitle('Practice targets'),
         const SizedBox(height: 10),
         if (_submittedActivityIds.contains(activity.id)) ...[
-          _LessonPracticeMessage(
-            color: Colors.green,
-            icon: Icons.verified,
-            text:
-                'All ${practiceItems.length} assigned targets passed. You can '
-                'continue the lesson.',
+          LessonPracticeMessage(
+            color: hasUnverifiedTargets ? Colors.orange : Colors.green,
+            icon: hasUnverifiedTargets ? Icons.schedule : Icons.verified,
+            text: hasUnverifiedTargets
+                ? 'All ${practiceItems.length} assigned targets are complete. '
+                      'Inconclusive targets remain unverified and did not count '
+                      'as pronunciation mastery.'
+                : 'All ${practiceItems.length} assigned targets are complete. '
+                      'You can continue the lesson.',
           ),
           const SizedBox(height: 10),
-        ] else if ((_passedPronunciationTargets[activity.id]?.length ?? 0) >
+        ] else if ((_completedPronunciationTargets[activity.id]?.length ?? 0) >
             0) ...[
-          _LessonPracticeMessage(
+          LessonPracticeMessage(
             color: Colors.blue,
             icon: Icons.timelapse_rounded,
             text:
-                '${_passedPronunciationTargets[activity.id]!.length} of '
-                '${practiceItems.length} targets passed. Complete the rest to '
-                'continue.',
+                '${_completedPronunciationTargets[activity.id]!.length} of '
+                '${practiceItems.length} targets completed. Complete the rest '
+                'to continue.',
           ),
           const SizedBox(height: 10),
         ],
@@ -91,8 +96,9 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Listen if helpful, then practise each assigned target. Every '
-                  'target must pass before you can continue.',
+                  'Listen if helpful, then practise each assigned target. A '
+                  'verified target counts as mastery; after three inconclusive '
+                  'recordings, you may continue with that target marked unverified.',
                   style: TextStyle(
                     height: 1.35,
                     color: AppColors.textSecondary,
@@ -116,10 +122,17 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
   ) {
     final target = _pronunciationTarget(item);
     final normalizedTarget = _normalisePronunciationTarget(target);
-    final passed =
+    final completed =
         _submittedActivityIds.contains(activity.id) ||
-        (_passedPronunciationTargets[activity.id]?.contains(normalizedTarget) ??
+        (_completedPronunciationTargets[activity.id]?.contains(
+              normalizedTarget,
+            ) ??
             false);
+    final unverified =
+        _unverifiedPronunciationTargets[activity.id]?.contains(
+          normalizedTarget,
+        ) ??
+        false;
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 9),
@@ -131,7 +144,8 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
         leading: IconButton.filledTonal(
           tooltip: 'Hear with Kokoro',
           onPressed: () async {
-            final audio = await AppDependencies.instance.languageTools
+            final audio = await ref
+                .read(languageToolsApiProvider)
                 .synthesizeSpeech(target);
             await _audioPlayer.play(BytesSource(audio));
           },
@@ -144,8 +158,11 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
         subtitle: item is Map && item['ipa'] is String
             ? Text(item['ipa'] as String)
             : null,
-        trailing: passed
-            ? const Icon(Icons.verified_rounded, color: AppColors.success)
+        trailing: completed
+            ? Icon(
+                unverified ? Icons.schedule_rounded : Icons.verified_rounded,
+                color: unverified ? AppColors.warning : AppColors.success,
+              )
             : FilledButton.tonal(
                 onPressed: () => _openPronunciationPractice(
                   activity,
@@ -165,7 +182,7 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
   ) async {
     final result = await Navigator.of(context).push<PlpAttemptResult>(
       MaterialPageRoute(
-        builder: (_) => _LessonPronunciationPracticePage(
+        builder: (_) => LessonPronunciationPracticePage(
           initialTarget: target,
           assignedTargets: assignedTargets,
           activityId: widget.submitAttempt == null ? null : activity.id,
@@ -176,10 +193,29 @@ extension _LessonPronunciationWidgets on _InteractiveLessonScreenState {
     if (!mounted || result == null) return;
     _update(() {
       _recordServerLessonResult(result);
-      if (result.correct == true) {
-        _passedPronunciationTargets
+      if (result.pronunciationTargetCompleted) {
+        _completedPronunciationTargets
             .putIfAbsent(activity.id, () => {})
             .add(_normalisePronunciationTarget(target));
+        if (result.pronunciationMasteryVerified != true) {
+          _unverifiedPronunciationTargets
+              .putIfAbsent(activity.id, () => {})
+              .add(_normalisePronunciationTarget(target));
+        } else {
+          _unverifiedPronunciationTargets[activity.id]?.remove(
+            _normalisePronunciationTarget(target),
+          );
+        }
+      }
+      if (result.pronunciationActivityProgress[activity.id]
+          case final progress?) {
+        _completedPronunciationTargets[activity.id] = {
+          ...progress.verifiedTargetKeys,
+          ...progress.unverifiedTargetKeys,
+        };
+        _unverifiedPronunciationTargets[activity.id] = {
+          ...progress.unverifiedTargetKeys,
+        };
       }
       if (result.completedActivityIds.contains(activity.id)) {
         _submittedActivityIds.add(activity.id);

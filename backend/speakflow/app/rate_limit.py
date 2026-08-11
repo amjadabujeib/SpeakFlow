@@ -34,6 +34,10 @@ class ProcessSharedRateLimiter:
                 "CREATE INDEX IF NOT EXISTS ix_request_events_key_time "
                 "ON request_events(event_key, occurred_at)"
             )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS ix_request_events_occurred_at "
+                "ON request_events(occurred_at)"
+            )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=3, isolation_level=None)

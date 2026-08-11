@@ -1,11 +1,10 @@
 """Add source-attributed external curriculum concepts."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision: str = "20260721_02"
 down_revision: str | None = "20260716_01"

@@ -1,9 +1,8 @@
 """Strengthen learner-state relational and score integrity."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from alembic import op
-
 
 revision: str = "20260724_04"
 down_revision: str | None = "20260724_03"

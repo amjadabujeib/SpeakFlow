@@ -3,20 +3,23 @@ from __future__ import annotations
 import difflib
 import math
 import re
+from collections.abc import Iterable
 from copy import deepcopy
-from typing import Iterable
 
 from speakflow.features.roleplay.domain.catalog import (
+    _BUILTIN_BY_ID,
+    _OBJECTIVE_EVIDENCE_PATTERNS,
+    _WORD,
     BUILTIN_SCENARIOS,
     MIN_SPOKEN_WORDS,
     MIN_TURNS_FOR_EVALUATION,
     MIN_VOICED_SECONDS,
     MIN_WORDS_FOR_LANGUAGE_EVALUATION,
-    _BUILTIN_BY_ID,
-    _OBJECTIVE_EVIDENCE_PATTERNS,
-    _WORD,
     _objective,
     _rubric,
+)
+from speakflow.features.roleplay.domain.evaluation import (
+    evaluation_availability_note,
 )
 
 
@@ -51,7 +54,7 @@ def custom_scenario_definition(
         "objectives": [
             _objective("purpose", "Explain what you need or want", weight=2),
             _objective("details", "Provide at least one relevant detail"),
-            _objective("respond", "Respond to two relevant questions", weight=2),
+            _objective("respond", "Respond to a relevant question", weight=2),
             _objective("outcome", "Confirm a clear outcome or next step"),
         ],
         "target_language": [],
@@ -99,11 +102,13 @@ def validated_objective_updates(
             continue
         objective_id = str(item.get("objective_id", "")).strip()
         evidence = " ".join(str(item.get("evidence", "")).split()).strip()
+        normalized_evidence = _normalize(evidence)
         if (
             objective_id not in allowed
             or objective_id in seen
             or not evidence
-            or _normalize(evidence) not in normalized_text
+            or not normalized_evidence
+            or f" {normalized_evidence} " not in f" {normalized_text} "
         ):
             continue
         seen.add(objective_id)
@@ -209,7 +214,12 @@ def aggregate_session(
     turns: list[dict],
     external_evaluation: dict | None = None,
 ) -> dict:
-    successful = [item for item in turns if item.get("user_text", "").strip()]
+    successful = [
+        item
+        for item in turns
+        if item.get("user_text", "").strip()
+        and item.get("turn_status", "meaningful") == "meaningful"
+    ]
     spoken = [item for item in successful if item.get("input_mode") == "audio"]
     word_count = sum(max(0, int(item.get("word_count", 0))) for item in successful)
     spoken_word_count = sum(max(0, int(item.get("word_count", 0))) for item in spoken)
@@ -242,17 +252,28 @@ def aggregate_session(
         and isinstance(word.get("end"), (int, float))
     )
     alignment_coverage = (
-        round(timed_word_count / spoken_word_count, 3)
+        min(1.0, round(timed_word_count / spoken_word_count, 3))
         if spoken_word_count
         else None
     )
-    fluency = _weighted_metric(spoken, "fluency", "voiced_seconds")
-    pitch_variation = _weighted_metric(spoken, "pitch_variation", "voiced_seconds")
-    grammar_units = sum(
-        max(0.0, float(item.get("grammar_error_units", 0))) for item in successful
+    raw_fluency = _weighted_metric(spoken, "fluency", "voiced_seconds")
+    raw_pitch_variation = _weighted_metric(
+        spoken,
+        "pitch_variation",
+        "voiced_seconds",
     )
-    grammar_score = (
-        round(100 * math.exp(-4 * grammar_units / word_count))
+    grammar_turns = [
+        item for item in successful if item.get("grammar_evaluated") is True
+    ]
+    grammar_word_count = sum(
+        max(0, int(item.get("word_count", 0))) for item in grammar_turns
+    )
+    grammar_units = sum(
+        max(0.0, float(item.get("grammar_error_units", 0)))
+        for item in grammar_turns
+    )
+    grammar_coverage = (
+        min(1.0, round(grammar_word_count / word_count, 3))
         if word_count
         else None
     )
@@ -280,6 +301,16 @@ def aggregate_session(
         and voiced_seconds >= MIN_VOICED_SECONDS
         and (alignment_coverage or 0) >= 0.7
     )
+    enough_grammar = (
+        enough_general
+        and grammar_word_count >= MIN_WORDS_FOR_LANGUAGE_EVALUATION
+        and (grammar_coverage or 0) >= 0.8
+    )
+    grammar_score = (
+        round(100 * math.exp(-4 * grammar_units / grammar_word_count))
+        if enough_grammar
+        else None
+    )
     mode = (
         "spoken"
         if len(spoken) == len(successful) and successful
@@ -295,25 +326,34 @@ def aggregate_session(
             "icon": scenario.get("icon", "🎭"),
         },
         "mode": mode,
-        "eligible": enough_spoken if mode != "text" else enough_general,
-        "eligibility_note": _eligibility_note(
-            mode=mode,
-            turns=len(successful),
-            word_count=word_count,
-            spoken_word_count=spoken_word_count,
-            voiced_seconds=voiced_seconds,
-            alignment_coverage=alignment_coverage,
+        "eligible": enough_general,
+        "eligibility_note": evaluation_availability_note(
+            _eligibility_note(
+                mode=mode,
+                turns=len(successful),
+                word_count=word_count,
+                spoken_word_count=spoken_word_count,
+                voiced_seconds=voiced_seconds,
+                alignment_coverage=alignment_coverage,
+                enough_general=enough_general,
+                enough_spoken=enough_spoken,
+            ),
+            enough_general=enough_general,
+            enough_grammar=enough_grammar,
+            evaluation_source=str(
+                external.get("source", "deterministic_fallback")
+            ),
         ),
         "scenario_completed": task["completed"],
         "objective_progress": task,
         "scores": {
             "task_achievement": task["score"],
-            "interaction": interaction,
+            "interaction": interaction if enough_general else None,
             "grammar_control": grammar_score,
-            "vocabulary_function": vocabulary,
-            "delivery_fluency": fluency,
-            "intelligibility_proxy": confidence,
-            "pitch_variation": pitch_variation,
+            "vocabulary_function": vocabulary if enough_general else None,
+            "delivery_fluency": raw_fluency if enough_spoken else None,
+            "intelligibility_proxy": confidence if enough_spoken else None,
+            "pitch_variation": raw_pitch_variation if enough_spoken else None,
         },
         "evidence": {
             "successful_turns": len(successful),
@@ -323,6 +363,8 @@ def aggregate_session(
             "voiced_seconds": voiced_seconds,
             "alignment_coverage": alignment_coverage,
             "grammar_error_units": round(grammar_units, 2),
+            "grammar_evaluation_coverage": grammar_coverage,
+            "delivery_evaluation_eligible": enough_spoken,
             "evaluation_source": external.get("source", "deterministic_fallback"),
             "interaction_evidence": external.get("interaction_evidence", []),
             "vocabulary_evidence": external.get("vocabulary_evidence", []),
@@ -377,7 +419,10 @@ def _weighted_metric(turns: list[dict], metric: str, weight: str) -> int | None:
         values.append((float(value), safe_weight))
     if not values:
         return None
-    return round(sum(value * weight for value, weight in values) / sum(weight for _, weight in values))
+    weighted = sum(value * weight for value, weight in values) / sum(
+        weight for _, weight in values
+    )
+    return max(0, min(100, round(weighted)))
 
 
 def _trimmed_mean(values: list[float]) -> int | None:
@@ -424,25 +469,23 @@ def _eligibility_note(
     spoken_word_count: int,
     voiced_seconds: float,
     alignment_coverage: float | None,
+    enough_general: bool,
+    enough_spoken: bool,
 ) -> str:
-    if mode == "text":
-        if turns >= MIN_TURNS_FOR_EVALUATION and word_count >= MIN_WORDS_FOR_LANGUAGE_EVALUATION:
-            return "Enough text evidence for a practice evaluation."
+    if not enough_general:
         return (
             f"Use at least {MIN_TURNS_FOR_EVALUATION} turns and "
-            f"{MIN_WORDS_FOR_LANGUAGE_EVALUATION} words for a reliable text evaluation."
+            f"{MIN_WORDS_FOR_LANGUAGE_EVALUATION} words for reliable language scores."
         )
-    if (
-        turns >= MIN_TURNS_FOR_EVALUATION
-        and spoken_word_count >= MIN_SPOKEN_WORDS
-        and voiced_seconds >= MIN_VOICED_SECONDS
-        and (alignment_coverage or 0) >= 0.7
-    ):
-        return "Enough spoken evidence for a practice evaluation."
+    if mode == "text":
+        return "Enough text evidence for reliable practice scores."
+    if enough_spoken:
+        return "Enough conversation and spoken evidence for reliable practice scores."
     return (
-        f"Use at least {MIN_TURNS_FOR_EVALUATION} spoken turns, "
-        f"{MIN_SPOKEN_WORDS} recognized words, and {int(MIN_VOICED_SECONDS)} "
-        "seconds of clear speech for a reliable spoken evaluation."
+        "Language scores have enough evidence. Speaking-delivery scores remain hidden "
+        f"until there are at least {MIN_TURNS_FOR_EVALUATION} spoken turns, "
+        f"{MIN_SPOKEN_WORDS} recognized words, {int(MIN_VOICED_SECONDS)} seconds "
+        "of clear speech, and sufficient word alignment."
     )
 
 

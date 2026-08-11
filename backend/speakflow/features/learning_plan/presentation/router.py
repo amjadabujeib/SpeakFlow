@@ -3,33 +3,45 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 
-from plp.schemas import (
+from speakflow.features.learning_plan.application import (
+    learning_plan_lifecycle,
+    learning_plan_service,
+)
+from speakflow.features.learning_plan.engine.schemas import (
     ActivityAttemptInput,
     ActivityAttemptResult,
     AdaptationProposalView,
     GenerationAccepted,
+    GenerationCreateInput,
     GenerationView,
     LearnerProfileInput,
     LearnerProfileView,
     LocalLearnerResetResult,
     PlpDocument,
 )
-from plp.service import (
+from speakflow.features.learning_plan.engine.service import (
     PlpConflictError,
     PlpInvalidAttemptError,
     PlpNotFoundError,
     PlpUnavailableError,
-    plp_service,
 )
-
 
 router = APIRouter(prefix="/api", tags=["personalized-learning-plan"])
 
 
 @router.get("/plp/health")
-def plp_health() -> dict:
-    return plp_service.health()
+def plp_health() -> JSONResponse:
+    state = learning_plan_lifecycle.health()
+    ready = (
+        state.get("database") == "ready"
+        and state.get("curriculum") == "ready"
+        and state.get("worker") is True
+    )
+    if ready:
+        return JSONResponse(status_code=200, content={"status": "ok"})
+    return JSONResponse(status_code=503, content={"status": "degraded"})
 
 
 @router.get("/onboarding/options")
@@ -67,17 +79,17 @@ def onboarding_options() -> dict:
 
 @router.put("/learners/local/profile", response_model=LearnerProfileView)
 def save_local_profile(payload: LearnerProfileInput) -> LearnerProfileView:
-    return _call(plp_service.save_profile, payload)
+    return _call(learning_plan_service.save_profile, payload)
 
 
 @router.get("/learners/local/profile", response_model=LearnerProfileView)
 def get_local_profile() -> LearnerProfileView:
-    return _call(plp_service.get_profile)
+    return _call(learning_plan_service.get_profile)
 
 
 @router.delete("/learners/local", response_model=LocalLearnerResetResult)
 def reset_local_learner() -> LocalLearnerResetResult:
-    return _call(plp_service.reset_local_learner)
+    return _call(learning_plan_service.reset_learner)
 
 
 @router.post(
@@ -85,28 +97,31 @@ def reset_local_learner() -> LocalLearnerResetResult:
     response_model=GenerationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def generate_plan() -> GenerationAccepted:
-    return _call(plp_service.create_generation)
+def generate_plan(payload: GenerationCreateInput | None = None) -> GenerationAccepted:
+    return _call(
+        learning_plan_service.create_generation,
+        bool(payload and payload.regenerate),
+    )
 
 
 @router.get("/plp/generations/latest", response_model=GenerationView)
 def latest_generation_status() -> GenerationView:
-    return _call(plp_service.get_latest_generation)
+    return _call(learning_plan_service.latest_generation)
 
 
 @router.get("/plp/generations/{job_id}", response_model=GenerationView)
 def generation_status(job_id: UUID) -> GenerationView:
-    return _call(plp_service.get_generation, job_id)
+    return _call(learning_plan_service.generation, job_id)
 
 
 @router.post("/plp/generations/{job_id}/retry", response_model=GenerationView)
 def retry_generation(job_id: UUID) -> GenerationView:
-    return _call(plp_service.retry_generation, job_id)
+    return _call(learning_plan_service.retry_generation, job_id)
 
 
 @router.get("/plp/active", response_model=PlpDocument)
 def active_plan() -> PlpDocument:
-    return _call(plp_service.get_active_document)
+    return _call(learning_plan_service.active_document)
 
 
 @router.post(
@@ -116,14 +131,14 @@ def active_plan() -> PlpDocument:
 def submit_activity_attempt(
     activity_id: str, payload: ActivityAttemptInput
 ) -> ActivityAttemptResult:
-    return _call(plp_service.record_attempt, activity_id, payload)
+    return _call(learning_plan_service.record_attempt, activity_id, payload)
 
 
 @router.get(
     "/plp/adaptation-proposals", response_model=list[AdaptationProposalView]
 )
 def adaptation_proposals() -> list[AdaptationProposalView]:
-    return _call(plp_service.list_adaptation_proposals)
+    return _call(learning_plan_service.adaptation_proposals)
 
 
 @router.post(
@@ -132,17 +147,17 @@ def adaptation_proposals() -> list[AdaptationProposalView]:
     status_code=status.HTTP_201_CREATED,
 )
 def create_adaptation_proposal() -> AdaptationProposalView:
-    return _call(plp_service.create_adaptation_proposal)
+    return _call(learning_plan_service.create_adaptation_proposal)
 
 
 @router.post("/plp/adaptation-proposals/{proposal_id}/approve")
 def approve_adaptation(proposal_id: UUID) -> dict:
-    return _call(plp_service.decide_adaptation, proposal_id, True)
+    return _call(learning_plan_service.decide_adaptation, proposal_id, True)
 
 
 @router.post("/plp/adaptation-proposals/{proposal_id}/reject")
 def reject_adaptation(proposal_id: UUID) -> dict:
-    return _call(plp_service.decide_adaptation, proposal_id, False)
+    return _call(learning_plan_service.decide_adaptation, proposal_id, False)
 
 
 def _call(function, *args):

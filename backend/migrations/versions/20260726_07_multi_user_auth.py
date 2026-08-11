@@ -1,11 +1,10 @@
 """Add registered and guest authentication sessions."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision: str = "20260726_07"
 down_revision: str | None = "20260726_06"

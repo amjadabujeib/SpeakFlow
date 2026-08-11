@@ -7,8 +7,15 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from speakflow.config import load_runtime_env
-from plp.models import Base
-
+from speakflow.features.admin.infrastructure import models as admin_models  # noqa: F401
+from speakflow.features.auth.infrastructure import models as auth_models  # noqa: F401
+from speakflow.features.learning_plan.engine import (
+    models as learning_plan_models,  # noqa: F401
+)
+from speakflow.features.roleplay.infrastructure import (
+    models as roleplay_models,  # noqa: F401
+)
+from speakflow.shared.orm import Base
 
 load_runtime_env()
 config = context.config

@@ -61,8 +61,8 @@ class PronunciationApi {
             : 'Server error: ${response.statusCode}',
         'status_code': response.statusCode,
       };
-    } catch (error) {
-      return {'error': 'Connection failed: $error'};
+    } catch (_) {
+      return {'error': 'Could not reach the backend. Check your connection.'};
     }
   }
 
@@ -89,8 +89,8 @@ class PronunciationApi {
             : 'Server error: ${response.statusCode}',
         'status_code': response.statusCode,
       };
-    } catch (error) {
-      return {'error': 'Connection failed: $error'};
+    } catch (_) {
+      return {'error': 'Could not reach the backend. Check your connection.'};
     }
   }
 }

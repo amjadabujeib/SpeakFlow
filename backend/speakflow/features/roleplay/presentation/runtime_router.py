@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from plp.schemas import (
+from speakflow.features.learning_plan.engine.schemas import (
     ArabicTranslationView,
     RoleplayFinalizeView,
     RoleplayScenarioDraftView,

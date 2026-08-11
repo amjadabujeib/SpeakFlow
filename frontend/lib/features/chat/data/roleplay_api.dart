@@ -23,22 +23,64 @@ class RoleplayApi {
   }) async => _client.decodeMap(
     await _client.post(
       '/roleplay/scenarios',
-      body: {
-        'category': category,
-        'icon': icon,
-        'title': title,
-        'description': description,
-        'ai_role': aiRole,
-        'learner_role': learnerRole,
-        'opening': opening,
-        'objectives': objectives,
-        'target_language': targetLanguage,
-        'evaluation_rubric': evaluationRubric,
-        'designed_cefr_level': designedCefrLevel,
-      },
+      body: _scenarioBody(
+        category: category,
+        icon: icon,
+        title: title,
+        description: description,
+        aiRole: aiRole,
+        learnerRole: learnerRole,
+        opening: opening,
+        objectives: objectives,
+        targetLanguage: targetLanguage,
+        evaluationRubric: evaluationRubric,
+        designedCefrLevel: designedCefrLevel,
+      ),
     ),
     successStatuses: const {200, 201},
   );
+
+  Future<JsonMap> updateScenario({
+    required String scenarioId,
+    required String category,
+    required String icon,
+    required String title,
+    required String description,
+    required String aiRole,
+    required String learnerRole,
+    required String opening,
+    required List<JsonMap> objectives,
+    required List<String> targetLanguage,
+    required List<JsonMap> evaluationRubric,
+    required String designedCefrLevel,
+  }) async => _client.decodeMap(
+    await _client.put(
+      '/roleplay/scenarios/$scenarioId',
+      body: _scenarioBody(
+        category: category,
+        icon: icon,
+        title: title,
+        description: description,
+        aiRole: aiRole,
+        learnerRole: learnerRole,
+        opening: opening,
+        objectives: objectives,
+        targetLanguage: targetLanguage,
+        evaluationRubric: evaluationRubric,
+        designedCefrLevel: designedCefrLevel,
+      ),
+    ),
+  );
+
+  Future<void> deleteScenario(String scenarioId) async {
+    final response = await _client.delete('/roleplay/scenarios/$scenarioId');
+    if (response.statusCode != 204) {
+      throw ApiException(
+        _client.errorDetail(response),
+        statusCode: response.statusCode,
+      );
+    }
+  }
 
   Future<JsonMap> generateScenarioDraft({
     required String category,
@@ -93,4 +135,30 @@ class RoleplayApi {
       requestTimeout: ApiClient.historyTimeout,
     ),
   );
+
+  static JsonMap _scenarioBody({
+    required String category,
+    required String icon,
+    required String title,
+    required String description,
+    required String aiRole,
+    required String learnerRole,
+    required String opening,
+    required List<JsonMap> objectives,
+    required List<String> targetLanguage,
+    required List<JsonMap> evaluationRubric,
+    required String designedCefrLevel,
+  }) => {
+    'category': category,
+    'icon': icon,
+    'title': title,
+    'description': description,
+    'ai_role': aiRole,
+    'learner_role': learnerRole,
+    'opening': opening,
+    'objectives': objectives,
+    'target_language': targetLanguage,
+    'evaluation_rubric': evaluationRubric,
+    'designed_cefr_level': designedCefrLevel,
+  };
 }

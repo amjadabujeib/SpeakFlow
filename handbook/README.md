@@ -37,12 +37,18 @@ current implementation.
     and the checks required for common changes.
 13. [Repository and configuration guide](13-repository-config-guide.md) — root
     files, Flutter/Android scaffolding, assets, generated paths, and secrets.
+14. [Operations dashboard](14-admin-dashboard.md) — React/Vite structure,
+    administrator identity, `/admin` contracts, auditing, health semantics,
+    polling/error behavior, and deployment.
+15. [Observed non-functional characteristics](15-non-functional-requirements.md)
+    — implemented quality behavior, validation evidence, and current limits.
 
 ## Architectural summary
 
 SpeakFlow is a feature-oriented Clean Architecture modular monolith:
 
-- one Flutter application presents the user interface;
+- one Flutter application presents the learner interface;
+- one React/Vite application presents local operational summaries;
 - one FastAPI process exposes REST and WebSocket contracts;
 - one PostgreSQL 16 database with pgvector stores authoritative shared data;
 - local ML models provide speech, pronunciation, grammar, and TTS capabilities;
@@ -72,10 +78,15 @@ owner, migration head, startup command, or major runtime flow changes.
 - Device files hold only user-namespaced local practice lists, phoneme progress,
   auth-session restoration, and UI preferences.
 - Answers and completion decisions are server-authoritative.
+- Weekly mission selection ranks direct interest-context matches above broader
+  theme compatibility; scenario evidence remains available when scaffolding fades.
 - Scripted pronunciation uses target-dependent acoustic evidence; roleplay
   delivery metrics never pretend to be reference pronunciation scores.
-- Expensive models load lazily, not during `/health` or module import.
-- Every hand-written Python and Dart source file must remain at or below 500
-  lines; 100–300 lines is the preferred range.
+- Expensive model weights are not loaded by module import or `/health`; the
+  application lifespan eagerly warms them before readiness.
+- Architecture tests enforce a 500-line ceiling for hand-written Python and
+  Dart; 100–300 lines remains preferred.
 - `alembic current` must match `alembic heads` before running a new backend
   revision against an existing database.
+- Every `/admin` route requires an authenticated registered user with persisted
+  administrator access; privileged commands must create audit records.

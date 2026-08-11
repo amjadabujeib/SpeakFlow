@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, exists, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from plp.database import session_scope
-from speakflow.features.auth.infrastructure.models import AuthSession, User
+from speakflow.features.auth.application.errors import (
+    AuthEmailConflictError,
+    AuthInvalidCredentialsError,
+    AuthUnavailableError,
+)
 from speakflow.features.auth.application.ports import (
     AuthenticationPort,
     GuestSessionCommand,
@@ -19,15 +23,12 @@ from speakflow.features.auth.application.ports import (
     SignUpCommand,
 )
 from speakflow.features.auth.domain import AuthenticatedUser, IssuedSession
-from speakflow.features.auth.application.errors import (
-    AuthEmailConflictError,
-    AuthInvalidCredentialsError,
-    AuthUnavailableError,
-)
-
+from speakflow.features.auth.infrastructure.models import AuthSession, User
+from speakflow.features.learning_plan.engine.database import session_scope
 
 SESSION_DAYS = 30
 GUEST_SESSION_DAYS = 7
+ADMIN_SESSION_HOURS = 8
 MAX_ACTIVE_SESSIONS = 5
 SCRYPT_N = 2**14
 SCRYPT_R = 8
@@ -56,7 +57,7 @@ class AuthService:
                 )
                 session.add(user)
                 session.flush()
-                return _create_session(session, user, SESSION_DAYS)
+                return _create_session(session, user, timedelta(days=SESSION_DAYS))
         except AuthEmailConflictError:
             raise
         except IntegrityError as exc:
@@ -85,7 +86,12 @@ class AuthService:
                     raise AuthInvalidCredentialsError(
                         "email or password is incorrect"
                     )
-                return _create_session(session, user, SESSION_DAYS)
+                lifetime = (
+                    timedelta(hours=ADMIN_SESSION_HOURS)
+                    if user.is_admin
+                    else timedelta(days=SESSION_DAYS)
+                )
+                return _create_session(session, user, lifetime)
         except AuthInvalidCredentialsError:
             raise
         except SQLAlchemyError as exc:
@@ -116,7 +122,11 @@ class AuthService:
                 )
                 session.add(user)
                 session.flush()
-                return _create_session(session, user, GUEST_SESSION_DAYS)
+                return _create_session(
+                    session,
+                    user,
+                    timedelta(days=GUEST_SESSION_DAYS),
+                )
         except SQLAlchemyError as exc:
             raise AuthUnavailableError(
                 "authentication database is unavailable"
@@ -169,7 +179,7 @@ class AuthService:
             ) from exc
 
 
-def _create_session(session, user: User, lifetime_days: int) -> IssuedSession:
+def _create_session(session, user: User, lifetime: timedelta) -> IssuedSession:
     now = _utc_now()
     session.execute(
         select(User.id).where(User.id == user.id).with_for_update()
@@ -199,7 +209,7 @@ def _create_session(session, user: User, lifetime_days: int) -> IssuedSession:
         )
     )
     raw_token = secrets.token_urlsafe(48)
-    expires_at = now + timedelta(days=lifetime_days)
+    expires_at = now + lifetime
     session.add(
         AuthSession(
             user_id=user.id,
@@ -222,6 +232,7 @@ def _user_view(user: User) -> AuthenticatedUser:
         email=user.email,
         display_name=user.display_name
         or ("Guest" if user.kind in {"guest", "local_guest"} else "Learner"),
+        is_admin=user.is_admin,
     )
 
 
@@ -264,7 +275,7 @@ def _verify_password(password: str, stored: str) -> bool:
             derived,
             base64.urlsafe_b64decode(expected.encode("ascii")),
         )
-    except (ValueError, TypeError):
+    except (binascii.Error, OverflowError, ValueError, TypeError):
         return False
 
 
@@ -273,7 +284,7 @@ def _token_hash(token: str) -> str:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 auth_service: AuthenticationPort = AuthService()

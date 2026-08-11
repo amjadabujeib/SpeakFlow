@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
-import 'core/auth/auth_session_store.dart';
 import 'core/network/api_config.dart';
-import 'core/providers/app_state.dart';
 import 'app/router.dart';
+import 'app/providers.dart';
+
+double effectiveTextScale(double systemScale, double preferenceScale) =>
+    (systemScale * preferenceScale).clamp(0.85, 2.0).toDouble();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,48 +24,62 @@ Future<void> main() async {
       );
     }
   }
-  await AuthSessionStore.instance.restore();
-  final appState = AppState();
+  final container = ProviderContainer();
+  final authStore = container.read(authSessionStoreProvider);
+  final appState = container.read(appStateProvider);
+  await authStore.restore();
   await appState.restorePreferences();
-  var hadSession = AuthSessionStore.instance.hasSession;
-  AuthSessionStore.instance.addListener(() {
-    final hasSession = AuthSessionStore.instance.hasSession;
+  var hadSession = authStore.hasSession;
+  authStore.addListener(() {
+    final hasSession = authStore.hasSession;
     if (hadSession && !hasSession) appState.resetLearnerState();
     hadSession = hasSession;
   });
-  SystemChrome.setPreferredOrientations([
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  runApp(const ProviderScope(child: SpeakFlowApp()));
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const SpeakFlowApp(),
+    ),
+  );
 }
 
-class SpeakFlowApp extends StatelessWidget {
+class SpeakFlowApp extends ConsumerWidget {
   const SpeakFlowApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final appState = AppState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appState = ref.watch(appStateProvider);
+    final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
       title: 'SpeakFlow',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      routerConfig: appRouter,
-      builder: (context, child) => AnimatedBuilder(
-        animation: appState,
-        builder: (context, _) => AnnotatedRegion<SystemUiOverlayStyle>(
-          value: const SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-            systemNavigationBarColor: AppColors.background,
-            systemNavigationBarIconBrightness: Brightness.light,
+      routerConfig: router,
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: AppColors.background,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarIconBrightness: Brightness.light,
+          systemStatusBarContrastEnforced: false,
+          systemNavigationBarContrastEnforced: false,
+        ),
+        child: MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(
+              effectiveTextScale(
+                MediaQuery.textScalerOf(context).scale(1),
+                appState.fontSize,
+              ),
+            ),
           ),
-          child: MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(appState.fontSize)),
-            child: child ?? const SizedBox.shrink(),
-          ),
+          child: child ?? const SizedBox.shrink(),
         ),
       ),
     );

@@ -19,6 +19,44 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
   String _icon = '🎭';
 
   bool get _hasDraft => _level != null;
+  bool get _editing => widget.initialScenario != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final scenario = widget.initialScenario;
+    if (scenario == null) return;
+    _category.text = scenario.category;
+    _title.text = scenario.title;
+    _description.text = scenario.description;
+    _aiRole.text = scenario.aiRole;
+    _learnerRole.text = scenario.learnerRole;
+    _opening.text = scenario.opening;
+    _icon = scenario.icon;
+    _level = scenario.designedCefrLevel ?? 'B1';
+    _objectives.addAll(
+      scenario.objectives.map(
+        (item) => _EditableObjective(
+          id: item.id,
+          label: item.label,
+          weight: item.weight.clamp(1, 5).toInt(),
+        ),
+      ),
+    );
+    _phrases.addAll(
+      scenario.targetLanguage.map((item) => TextEditingController(text: item)),
+    );
+    _rubric.addAll(
+      scenario.evaluationRubric.map(
+        (item) => _EditableRubric(
+          id: item.id,
+          label: item.label,
+          description: item.description,
+          weight: item.weight.clamp(1, 5).toInt(),
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -69,6 +107,9 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
       if (!mounted) return;
       _disposeDraftFields();
       _icon = value['icon']?.toString() ?? '🎭';
+      _category.text = value['category']?.toString() ?? _category.text;
+      _title.text = value['title']?.toString() ?? _title.text;
+      _description.text = value['description']?.toString() ?? _description.text;
       _level = value['designed_cefr_level']?.toString() ?? 'B1';
       _source = value['draft_source']?.toString();
       _aiRole.text = value['ai_role']?.toString() ?? '';
@@ -82,7 +123,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
             _EditableObjective(
               id: item['id']?.toString() ?? _newId('goal'),
               label: item['label']?.toString() ?? '',
-              weight: (item['weight'] as num?)?.round().clamp(1, 3) ?? 1,
+              weight: (item['weight'] as num?)?.round().clamp(1, 5) ?? 1,
             ),
           );
         }
@@ -102,6 +143,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
               id: item['id']?.toString() ?? _newId('quality'),
               label: item['label']?.toString() ?? '',
               description: item['description']?.toString() ?? '',
+              weight: (item['weight'] as num?)?.round().clamp(1, 5) ?? 1,
             ),
           );
         }
@@ -131,7 +173,10 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
               item.description.text.trim().length >= 8,
         )
         .toList();
-    if (_aiRole.text.trim().length < 3 ||
+    if (_category.text.trim().length < 2 ||
+        _title.text.trim().length < 2 ||
+        _description.text.trim().length < 8 ||
+        _aiRole.text.trim().length < 3 ||
         _learnerRole.text.trim().length < 3 ||
         _opening.text.trim().length < 3 ||
         objectiveValues.length < 3 ||
@@ -148,7 +193,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
       _error = null;
     });
     try {
-      final value = await widget.api.createScenario(
+      final arguments = (
         category: _category.text.trim(),
         icon: _icon,
         title: _title.text.trim(),
@@ -173,12 +218,40 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
                 'id': item.id,
                 'label': item.label.text.trim(),
                 'description': item.description.text.trim(),
-                'weight': 1,
+                'weight': item.weight,
               },
             )
             .toList(growable: false),
         designedCefrLevel: _level!,
       );
+      final value = _editing
+          ? await widget.api.updateScenario(
+              scenarioId: widget.initialScenario!.id,
+              category: arguments.category,
+              icon: arguments.icon,
+              title: arguments.title,
+              description: arguments.description,
+              aiRole: arguments.aiRole,
+              learnerRole: arguments.learnerRole,
+              opening: arguments.opening,
+              objectives: arguments.objectives,
+              targetLanguage: arguments.targetLanguage,
+              evaluationRubric: arguments.evaluationRubric,
+              designedCefrLevel: arguments.designedCefrLevel,
+            )
+          : await widget.api.createScenario(
+              category: arguments.category,
+              icon: arguments.icon,
+              title: arguments.title,
+              description: arguments.description,
+              aiRole: arguments.aiRole,
+              learnerRole: arguments.learnerRole,
+              opening: arguments.opening,
+              objectives: arguments.objectives,
+              targetLanguage: arguments.targetLanguage,
+              evaluationRubric: arguments.evaluationRubric,
+              designedCefrLevel: arguments.designedCefrLevel,
+            );
       if (!mounted) return;
       Navigator.pop(context, RoleplayScenario.fromJson(value));
     } catch (error) {
@@ -193,6 +266,8 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
   String _newId(String prefix) =>
       '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${_objectives.length + _rubric.length}';
 
+  void _mutate(VoidCallback callback) => setState(callback);
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -203,7 +278,11 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
         children: [
           Expanded(
             child: Text(
-              _hasDraft ? 'Review your scenario' : 'Create a scenario',
+              _editing
+                  ? 'Edit custom scenario'
+                  : _hasDraft
+                  ? 'Review your scenario'
+                  : 'Create a scenario',
               style: GoogleFonts.inter(
                 color: _text,
                 fontWeight: FontWeight.w700,
@@ -222,7 +301,7 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
         child: _hasDraft ? _draftEditor() : _briefForm(),
       ),
       actions: [
-        if (_hasDraft)
+        if (_hasDraft && !_editing)
           TextButton(
             onPressed: _saving
                 ? null
@@ -256,121 +335,12 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
                 : _saving
                 ? 'Saving…'
                 : _hasDraft
-                ? 'Save scenario'
+                ? _editing
+                      ? 'Save changes'
+                      : 'Save scenario'
                 : 'Generate draft',
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _briefForm() {
-    return ListView(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _primary.withValues(alpha: .09),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _primary.withValues(alpha: .25)),
-          ),
-          child: Text(
-            'Describe the situation. SpeakFlow will use your current CEFR level to draft the roles, goals, useful phrases, and evaluation criteria. You review everything before it is saved.',
-            style: GoogleFonts.inter(color: _muted, fontSize: 12, height: 1.45),
-          ),
-        ),
-        const SizedBox(height: 15),
-        _DialogField(controller: _category, label: 'Category'),
-        const SizedBox(height: 12),
-        _DialogField(controller: _title, label: 'Scenario name'),
-        const SizedBox(height: 12),
-        _DialogField(
-          controller: _description,
-          label: 'What should happen?',
-          lines: 4,
-        ),
-        _errorView(),
-      ],
-    );
-  }
-
-  Widget _draftEditor() {
-    return ListView(
-      children: [
-        Row(
-          children: [
-            Text(_icon, style: const TextStyle(fontSize: 25)),
-            const SizedBox(width: 9),
-            _BuilderChip(label: 'Designed for $_level', color: _primary),
-            const SizedBox(width: 7),
-            if (_source == 'reviewable_fallback')
-              const _BuilderChip(
-                label: 'Fallback draft—review carefully',
-                color: _warning,
-              ),
-          ],
-        ),
-        const SizedBox(height: 15),
-        _sectionTitle('Roles and opening'),
-        _DialogField(controller: _aiRole, label: 'AI partner role'),
-        const SizedBox(height: 10),
-        _DialogField(controller: _learnerRole, label: 'Learner role'),
-        const SizedBox(height: 10),
-        _DialogField(controller: _opening, label: 'Opening message', lines: 2),
-        const SizedBox(height: 18),
-        _sectionTitle('Conversation goals'),
-        Text(
-          'A goal is completed only when the learner’s own words provide evidence.',
-          style: GoogleFonts.inter(color: _muted, fontSize: 10),
-        ),
-        const SizedBox(height: 8),
-        for (var index = 0; index < _objectives.length; index++)
-          _editableObjective(index),
-        if (_objectives.length < 6)
-          TextButton.icon(
-            onPressed: () => setState(
-              () => _objectives.add(
-                _EditableObjective(id: _newId('goal'), label: '', weight: 1),
-              ),
-            ),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add goal'),
-          ),
-        const SizedBox(height: 15),
-        _sectionTitle('Useful sentence starters'),
-        for (var index = 0; index < _phrases.length; index++)
-          _editablePhrase(index),
-        if (_phrases.length < 10)
-          TextButton.icon(
-            onPressed: () =>
-                setState(() => _phrases.add(TextEditingController())),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add phrase'),
-          ),
-        const SizedBox(height: 15),
-        _sectionTitle('Scenario-specific evaluation'),
-        Text(
-          'These scores complement task, interaction, grammar, vocabulary, and spoken-delivery measures.',
-          style: GoogleFonts.inter(color: _muted, fontSize: 10, height: 1.4),
-        ),
-        const SizedBox(height: 8),
-        for (var index = 0; index < _rubric.length; index++)
-          _editableRubric(index),
-        if (_rubric.length < 4)
-          TextButton.icon(
-            onPressed: () => setState(
-              () => _rubric.add(
-                _EditableRubric(
-                  id: _newId('quality'),
-                  label: '',
-                  description: '',
-                ),
-              ),
-            ),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add evaluation criterion'),
-          ),
-        _errorView(),
       ],
     );
   }
@@ -449,6 +419,10 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
                   controller: item.label,
                   label: 'Criterion ${index + 1}',
                 ),
+              ),
+              _WeightMenu(
+                value: item.weight,
+                onChanged: (value) => setState(() => item.weight = value),
               ),
               IconButton(
                 tooltip: 'Remove criterion',

@@ -1,16 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../core/network/api_client.dart';
+import '../core/auth/auth_session_store.dart';
+import '../core/providers/app_state.dart';
 import '../features/auth/data/auth_api.dart';
 import '../features/chat/data/roleplay_api.dart';
 import '../features/news/data/news_api.dart';
 import '../features/learning_plan/data/learning_plan_api.dart';
+import '../features/learning_plan/data/plp_repository.dart';
 import '../features/practice/data/language_tools_api.dart';
 import '../features/practice/data/pronunciation_api.dart';
 
 class AppDependencies {
-  static final instance = AppDependencies();
-
   final ApiClient apiClient;
   late final AuthApi auth;
   late final RoleplayApi roleplay;
@@ -31,7 +33,11 @@ class AppDependencies {
 }
 
 final appDependenciesProvider = Provider<AppDependencies>(
-  (ref) => AppDependencies.instance,
+  (ref) => AppDependencies(),
+);
+final appStateProvider = ChangeNotifierProvider<AppState>((ref) => AppState());
+final authSessionStoreProvider = ChangeNotifierProvider<AuthSessionStore>(
+  (ref) => AuthSessionStore.instance,
 );
 final authApiProvider = Provider<AuthApi>(
   (ref) => ref.watch(appDependenciesProvider).auth,
@@ -50,4 +56,7 @@ final pronunciationApiProvider = Provider<PronunciationApi>(
 );
 final learningPlanApiProvider = Provider<LearningPlanApi>(
   (ref) => ref.watch(appDependenciesProvider).learningPlan,
+);
+final plpRepositoryProvider = Provider<PlpRepository>(
+  (ref) => HttpPlpRepository(api: ref.watch(learningPlanApiProvider)),
 );

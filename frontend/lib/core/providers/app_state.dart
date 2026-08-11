@@ -7,9 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 class AppState extends ChangeNotifier {
-  static final AppState _instance = AppState._internal();
-  factory AppState() => _instance;
-  AppState._internal();
+  AppState();
   Future<void> _preferenceWrite = Future<void>.value();
 
   // Font size (settings slider)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 
-
 MIN_TURNS_FOR_EVALUATION = 4
 MIN_WORDS_FOR_LANGUAGE_EVALUATION = 30
 MIN_SPOKEN_WORDS = 30

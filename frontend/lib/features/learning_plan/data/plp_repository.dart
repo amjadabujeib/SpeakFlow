@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/network/api_client.dart' show ApiClient, ApiException;
@@ -21,7 +18,7 @@ abstract class PlpRepository {
   Future<JsonMap> saveProfile(JsonMap profile) =>
       throw UnsupportedError('This PLP repository does not persist profiles.');
 
-  Future<String> generatePlan() =>
+  Future<String> generatePlan({bool regenerate = false}) =>
       throw UnsupportedError('This PLP repository does not generate plans.');
 
   Future<JsonMap> generationStatus(String jobId) =>
@@ -40,25 +37,6 @@ abstract class PlpRepository {
       throw UnsupportedError('This PLP repository does not grade attempts.');
 }
 
-class AssetPlpRepository extends PlpRepository {
-  static const defaultAssetPath = 'assets/mock/plp_plan.json';
-
-  final AssetBundle? bundle;
-  final String assetPath;
-
-  const AssetPlpRepository({this.bundle, this.assetPath = defaultAssetPath});
-
-  @override
-  Future<PlpDocument> loadPlan() async {
-    final source = await (bundle ?? rootBundle).loadString(assetPath);
-    final decoded = jsonDecode(source);
-    if (decoded is! Map<String, dynamic>) {
-      throw const PlpFormatException('document root must be a JSON object');
-    }
-    return PlpDocument.fromJson(decoded);
-  }
-}
-
 class PlpApiException implements Exception {
   final int statusCode;
   final String message;
@@ -72,33 +50,43 @@ class PlpApiException implements Exception {
 class PlpAttemptResult {
   final bool? correct;
   final int score;
+  final int? diagnosticScore;
   final String explanation;
   final JsonMap? correctResponse;
   final bool firstAttempt;
   final bool masteryEvidenceRecorded;
+  final bool pronunciationTargetCompleted;
+  final bool? pronunciationMasteryVerified;
   final bool lessonCompleted;
   final int? lessonScore;
   final bool newlyCompleted;
   final int xpAwarded;
   final Set<String> completedActivityIds;
+  final Map<String, PronunciationActivityProgress>
+  pronunciationActivityProgress;
 
   const PlpAttemptResult({
     required this.correct,
     required this.score,
+    this.diagnosticScore,
     required this.explanation,
     required this.correctResponse,
     required this.firstAttempt,
     required this.masteryEvidenceRecorded,
+    this.pronunciationTargetCompleted = false,
+    this.pronunciationMasteryVerified,
     required this.lessonCompleted,
     this.lessonScore,
     this.newlyCompleted = false,
     this.xpAwarded = 0,
     this.completedActivityIds = const {},
+    this.pronunciationActivityProgress = const {},
   });
 
   factory PlpAttemptResult.fromJson(JsonMap json) => PlpAttemptResult(
     correct: json['correct'] as bool?,
     score: json['score'] as int,
+    diagnosticScore: json['diagnostic_score'] as int?,
     explanation: json['explanation'] as String,
     correctResponse: json['correct_response'] is JsonMap
         ? json['correct_response'] as JsonMap
@@ -106,6 +94,10 @@ class PlpAttemptResult {
     firstAttempt: json['first_attempt'] as bool? ?? true,
     masteryEvidenceRecorded:
         json['mastery_evidence_recorded'] as bool? ?? false,
+    pronunciationTargetCompleted:
+        json['pronunciation_target_completed'] as bool? ?? false,
+    pronunciationMasteryVerified:
+        json['pronunciation_mastery_verified'] as bool?,
     lessonCompleted: json['lesson_completed'] as bool? ?? false,
     lessonScore: json['lesson_score'] as int?,
     newlyCompleted: json['newly_completed'] as bool? ?? false,
@@ -116,31 +108,50 @@ class PlpAttemptResult {
                 const [])
             .map((item) => item.toString())
             .toSet(),
+    pronunciationActivityProgress: _attemptPronunciationProgress(json),
   );
 }
 
-class HttpPlpRepository extends PlpRepository {
-  static final LearningPlanApi _sharedApi = LearningPlanApi(ApiClient());
+Map<String, PronunciationActivityProgress> _attemptPronunciationProgress(
+  JsonMap json,
+) {
+  final progress = json['lesson_progress'];
+  if (progress is! JsonMap) return const {};
+  final raw = progress['pronunciation_activity_progress'];
+  if (raw is! Map) return const {};
+  return {
+    for (final entry in raw.entries)
+      if (entry.value is Map)
+        entry.key.toString(): PronunciationActivityProgress.fromJson(
+          Map<String, dynamic>.from(entry.value as Map),
+          'attempt.lesson_progress.pronunciation_activity_progress.${entry.key}',
+        ),
+  };
+}
 
+class HttpPlpRepository extends PlpRepository {
   final String baseUrl;
   final LearningPlanApi _api;
 
-  HttpPlpRepository({String? baseUrl, http.Client? client})
-    : baseUrl = baseUrl ?? ApiConfig.origin,
-      _api = baseUrl == null && client == null
-          ? _sharedApi
-          : LearningPlanApi(
-              ApiClient(
-                httpClient: client,
-                endpoints: ApiEndpoints(
-                  origin: baseUrl ?? ApiConfig.origin,
-                  websocketOrigin: (baseUrl ?? ApiConfig.origin).replaceFirst(
-                    'http',
-                    'ws',
-                  ),
-                ),
-              ),
-            );
+  HttpPlpRepository({
+    LearningPlanApi? api,
+    String? baseUrl,
+    http.Client? client,
+  }) : baseUrl = baseUrl ?? ApiConfig.origin,
+       _api =
+           api ??
+           (baseUrl == null && client == null
+               ? LearningPlanApi(ApiClient())
+               : LearningPlanApi(
+                   ApiClient(
+                     httpClient: client,
+                     endpoints: ApiEndpoints(
+                       origin: baseUrl ?? ApiConfig.origin,
+                       websocketOrigin: (baseUrl ?? ApiConfig.origin)
+                           .replaceFirst('http', 'ws'),
+                     ),
+                   ),
+                 ));
 
   @override
   bool get isRemote => true;
@@ -159,16 +170,17 @@ class HttpPlpRepository extends PlpRepository {
       _translate(() => _api.saveProfile(profile));
 
   @override
-  Future<String> generatePlan() => _translate(() async {
-    final json = await _api.generate();
-    final jobId = json['job_id'];
-    if (jobId is! String) {
-      throw const PlpFormatException(
-        'generation response must include a job_id',
-      );
-    }
-    return jobId;
-  });
+  Future<String> generatePlan({bool regenerate = false}) =>
+      _translate(() async {
+        final json = await _api.generate(regenerate: regenerate);
+        final jobId = json['job_id'];
+        if (jobId is! String) {
+          throw const PlpFormatException(
+            'generation response must include a job_id',
+          );
+        }
+        return jobId;
+      });
 
   @override
   Future<JsonMap> generationStatus(String jobId) =>

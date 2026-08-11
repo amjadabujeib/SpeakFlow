@@ -6,6 +6,8 @@ import 'package:speakflow/core/theme/local_fonts.dart';
 
 import 'roleplay_feedback_data.dart';
 
+part 'roleplay_session_summary_sections.dart';
+
 const _background = Color(0xFF090E1A);
 const _surface = Color(0xFF111827);
 const _card = Color(0xFF1A2235);
@@ -55,7 +57,17 @@ class SessionFeedbackScreen extends StatelessWidget {
         children: [
           _SummaryHero(feedback: feedback),
           const SizedBox(height: 18),
+          _EvidenceNotice(feedback: feedback),
+          const SizedBox(height: 18),
           _ScoreGrid(feedback: feedback),
+          if (feedback.scenarioEvidence.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _ScenarioEvidenceSection(items: feedback.scenarioEvidence),
+          ],
+          if (feedback.corrections.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _CorrectionSection(corrections: feedback.corrections),
+          ],
           if (feedback.practiceWordsAdded > 0) ...[
             const SizedBox(height: 18),
             _PracticeListNotice(count: feedback.practiceWordsAdded),
@@ -166,7 +178,7 @@ class _SummaryHero extends StatelessWidget {
               _Stat(
                 icon: Icons.schedule_rounded,
                 value: '$minutes:${seconds.toString().padLeft(2, '0')}',
-                label: 'practice time',
+                label: 'session time',
               ),
             ],
           ),

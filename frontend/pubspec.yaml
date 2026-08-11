@@ -27,8 +27,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/mock/plp_plan.json
   fonts:
     - family: Inter
       fonts:

@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/providers/app_state.dart';
+import '../../../app/providers.dart';
 import '../data/plp_repository.dart';
 import 'onboarding_screen.dart';
 
-class FirstRunGate extends StatefulWidget {
+class FirstRunGate extends ConsumerStatefulWidget {
   final PlpRepository? repository;
 
   const FirstRunGate({super.key, this.repository});
 
   @override
-  State<FirstRunGate> createState() => _FirstRunGateState();
+  ConsumerState<FirstRunGate> createState() => _FirstRunGateState();
 }
 
-class _FirstRunGateState extends State<FirstRunGate> {
+class _FirstRunGateState extends ConsumerState<FirstRunGate> {
   late final PlpRepository _repository;
   _GateState _state = _GateState.checking;
   Object? _error;
@@ -106,7 +107,7 @@ class _FirstRunGateState extends State<FirstRunGate> {
   Future<void> _enterAppWithProfile() async {
     try {
       final profile = await _repository.loadProfile();
-      final state = AppState();
+      final state = ref.read(appStateProvider);
       final language = profile['native_language']?.toString();
       final level = profile['cefr_level']?.toString();
       final interests = (profile['interests'] as List<dynamic>? ?? const [])

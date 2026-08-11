@@ -12,15 +12,15 @@ order:
 5. routers receive their required callables and are included;
 6. Uvicorn runs `main:app` when the file is executed directly.
 
-The application lifespan starts the PLP worker. Shutdown stops the worker,
-closes the service/database pool when safe, and releases provider sessions.
+The application lifespan eagerly warms every local runtime model and then
+starts the PLP worker. Shutdown stops the worker, closes the service/database
+pool when safe, and releases provider sessions.
 
 The runtime dependency chain is straightforward:
 
 1. `main.py` calls `speakflow/app/factory.py` to construct FastAPI.
 2. `main.py` supplies the feature routers and concrete runtime adapters.
-3. Routers delegate work to the authentication service, PLP service, or
-   roleplay engine.
+3. Routers delegate to feature application services with narrow public methods.
 4. Services use SQLAlchemy to access PostgreSQL.
 5. Runtime adapters isolate local models and external providers from the route
    layer.
@@ -61,55 +61,76 @@ Authentication is the clearest Clean Architecture example:
 
 ### Learning plan
 
-The feature presentation router owns HTTP. The mature engine remains under
-`plp/` and is divided by responsibility: models, schemas, planning, retrieval,
-generation, grading, progress, attempts, roleplay persistence, and worker
-leasing. `PlpService` composes focused mixins and is the router-facing facade.
+The presentation router owns HTTP. Production callers use
+`LearningPlanService`, `LearningPlanLifecycle`, and
+`PronunciationAssignmentService` from `features/learning_plan/application`.
+The private transactional engine lives under
+`features/learning_plan/engine` and is divided by models, contracts, planning,
+retrieval, generation, grading, progress, attempts, and worker leasing.
 
 ### Roleplay
 
-Feature infrastructure owns roleplay ORM models. The REST router owns scenario
-and history contracts. The runtime router injects scenario generation,
-translation, finalization, and WebSocket functions from `speakflow/runtime`.
+Feature infrastructure owns roleplay ORM models and persistence. The REST
+router owns scenario and history contracts. Presentation modules own scenario
+drafting, translation, finalization, and the WebSocket state machine; the
+application service exposes the roleplay use-case surface.
 Deterministic scenario catalog and evaluation policy live under
 `speakflow/features/roleplay/domain`.
 
 ### Language tools, news, and pronunciation
 
 These presentation routers are router factories. `main.py` injects concrete
-functions from runtime modules, so a router does not import the executable
-entrypoint or own heavyweight model state.
+functions from each feature's infrastructure package, so routers do not import
+the executable entrypoint or own heavyweight model state.
 
-## The runtime adapter package
+### Administration
 
-`speakflow/runtime` contains operations that touch local models, provider SDKs,
-audio libraries, network sessions, or complex WebSocket orchestration. It is
-not a second domain layer. Its purpose is to keep those unstable dependencies
-out of `main.py` and out of simple feature contracts.
+`speakflow/features/admin/presentation.py` exposes aggregate operational reads
+and audited user-session revocation under `/admin`. Strict admin schemas own its
+contracts; `infrastructure/reporting.py` owns queries and commands, while the
+infrastructure model owns privileged-action audit rows.
+`main.py` includes the router directly because it needs no injected runtime
+callable.
 
-Model ownership is centralized in `runtime/models.py`. Global model references
-begin as `None`; lock-protected loaders initialize them only on first use.
-Health checks inspect state without causing model loads.
+The application middleware treats `/admin` as a protected namespace even
+though it is separate from the learner `/api` contract. It authenticates the
+same opaque bearer session, requires `AuthenticatedUser.is_admin`, attaches the
+actor to request state, and applies admin-specific rate limits. Missing and
+ordinary learner sessions receive 401 and 403 respectively.
 
-## Learning-plan service composition
+## Runtime model registry and feature adapters
 
-`plp/service.py` defines `PlpService` by combining small mixins:
+`speakflow/runtime/models.py` is the shared registry for heavyweight local
+models and their locks. Language, news, pronunciation, and roleplay adapters
+live in their owning feature's infrastructure, application, or presentation
+package rather than in a second catch-all runtime package.
+
+Global model references
+begin as `None`; the lifespan calls the lock-protected loaders sequentially so
+all local inference capabilities are warm before readiness. The loaders remain
+idempotent endpoint-level fallbacks. Health checks inspect state without
+causing model loads and report degraded readiness when eager warm-up is
+incomplete.
+
+## Learning-plan engine composition
+
+`features/learning_plan/engine/service.py` defines the private
+`LearningPlanEngine` by combining focused persistence behaviors:
 
 - base configuration and lifecycle;
 - profile/document behavior;
 - generation submission and retrieval;
 - attempts and server-side grading;
 - progress/adaptation views;
-- roleplay persistence;
 - worker leasing, retry, and failure transitions.
 
-The mixins share the same configured service instance but keep source files
-within the project size policy. Private helper modules own identity conversion,
-grading, generation-worker details, and failure envelopes.
+The roleplay application service exposes roleplay operations while persistence
+is owned by `features/roleplay/infrastructure`. Production routers do not depend
+on engine mixin methods directly.
 
 ## Database transaction boundary
 
-`plp.database.session_scope()` is the standard synchronous transaction
+`speakflow.features.learning_plan.engine.database.session_scope()` is the standard synchronous transaction
 boundary. It commits on success, rolls back on exceptions, and closes the
 session. Services catch SQLAlchemy errors at a boundary and convert them to
 feature errors. FastAPI routers then convert feature errors into appropriate
@@ -121,11 +142,12 @@ client session/turn cannot be persisted twice. Activity attempts use a
 
 ## API surface
 
-HTTP routers expose one unversioned `/api/...` contract. Live roleplay uses
-`/ws/chat`. The project intentionally does not clone routes under `/api/v1`:
-the Flutter application and backend are updated together, so duplicate aliases
-would add maintenance and test surface without supporting an independent
-consumer.
+Learner HTTP routers expose one unversioned `/api/...` contract. Live roleplay
+uses `/ws/chat`. The separate operations surface uses `/admin/...`; it is not a
+versioned learner API. The project intentionally does not clone routes under
+`/api/v1`: the Flutter application and backend are updated together, so
+duplicate aliases would add maintenance and test surface without supporting an
+independent consumer.
 
 Tests reject versioned aliases and ensure static generation routes are
 registered before dynamic `{job_id}` routes.
@@ -157,8 +179,8 @@ PLP query fails.
 
 - Feature presentation must never import `main.py`.
 - Domain and application modules must not depend on FastAPI or SQLAlchemy.
-- Runtime/provider modules may depend on frameworks but should expose focused
-  functions to routers.
+- Infrastructure/provider modules may depend on frameworks but expose focused
+  functions to application or presentation adapters.
 - ORM metadata is shared through `speakflow.shared.orm.Base` so Alembic sees one
   registry.
 - A new cross-cutting middleware belongs in `speakflow/app`, not in a feature.

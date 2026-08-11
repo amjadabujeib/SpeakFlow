@@ -75,6 +75,7 @@ extension _LessonQuestionWidgets on _InteractiveLessonScreenState {
         const _QuestionLabel(hint: 'Complete the one missing answer.'),
         const SizedBox(height: 16),
         Text(
+          key: const ValueKey('lesson-fill-blank-prompt'),
           data['prompt'] as String,
           style: const TextStyle(
             fontSize: 23,
@@ -84,9 +85,12 @@ extension _LessonQuestionWidgets on _InteractiveLessonScreenState {
         ),
         const SizedBox(height: 26),
         TextField(
+          key: const ValueKey('lesson-fill-blank-answer'),
           controller: controller,
           enabled: !checked,
           autocorrect: false,
+          textInputAction: TextInputAction.done,
+          scrollPadding: const EdgeInsets.only(bottom: 72),
           style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
           decoration: InputDecoration(
             hintText: 'Type the missing word or phrase',
@@ -114,6 +118,7 @@ extension _LessonQuestionWidgets on _InteractiveLessonScreenState {
             contentPadding: const EdgeInsets.all(19),
           ),
           onChanged: (value) => _update(() => _answers[activity.id] = value),
+          onSubmitted: (_) => FocusScope.of(context).unfocus(),
         ),
         if (checked)
           _AnswerExplanation(
@@ -167,7 +172,8 @@ extension _LessonQuestionWidgets on _InteractiveLessonScreenState {
         FilledButton.icon(
           onPressed: data['transcript'] is String
               ? () async {
-                  final audio = await AppDependencies.instance.languageTools
+                  final audio = await ref
+                      .read(languageToolsApiProvider)
                       .synthesizeSpeech(data['transcript'] as String);
                   await _audioPlayer.play(BytesSource(audio));
                 }

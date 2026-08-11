@@ -1,0 +1,101 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.2-pg16-bookworm
+        env:
+          POSTGRES_DB: english_tutor
+          POSTGRES_USER: english_tutor
+          POSTGRES_PASSWORD: english_tutor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U english_tutor -d english_tutor"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://english_tutor:english_tutor@127.0.0.1:5432/english_tutor
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+      - name: Lint backend
+        working-directory: backend
+        run: python -m ruff check .
+      - name: Apply migrations
+        working-directory: backend
+        run: python -m alembic -c alembic.ini upgrade head
+      - name: Check migration drift
+        working-directory: backend
+        run: python -m alembic -c alembic.ini check
+      - name: Test backend
+        working-directory: backend
+        run: PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -p 'test_*.py'
+
+  flutter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.7"
+          channel: stable
+          cache: true
+      - name: Restore Flutter dependencies
+        working-directory: frontend
+        run: flutter pub get
+      - name: Check Dart formatting
+        working-directory: frontend
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze Flutter
+        working-directory: frontend
+        run: flutter analyze
+      - name: Test Flutter
+        working-directory: frontend
+        run: flutter test
+
+  admin-dashboard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: admin-dashboard/package-lock.json
+      - name: Restore dashboard dependencies
+        working-directory: admin-dashboard
+        run: npm ci
+      - name: Lint dashboard
+        working-directory: admin-dashboard
+        run: npm run lint
+      - name: Test dashboard
+        working-directory: admin-dashboard
+        run: npm test
+      - name: Build dashboard
+        working-directory: admin-dashboard
+        run: npm run build

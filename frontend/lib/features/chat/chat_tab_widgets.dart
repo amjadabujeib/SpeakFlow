@@ -1,5 +1,7 @@
 part of 'chat_tab.dart';
 
+enum _ScenarioAction { edit, delete }
+
 class _IntroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -55,6 +57,8 @@ class _CategoryCard extends StatelessWidget {
   final bool expanded;
   final int Function(RoleplayScenario) sessionCount;
   final VoidCallback onToggle;
+  final ValueChanged<RoleplayScenario> onEdit;
+  final ValueChanged<RoleplayScenario> onDelete;
 
   const _CategoryCard({
     required this.title,
@@ -62,6 +66,8 @@ class _CategoryCard extends StatelessWidget {
     required this.expanded,
     required this.sessionCount,
     required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -124,6 +130,8 @@ class _CategoryCard extends StatelessWidget {
                   _ScenarioCard(
                     scenario: scenario,
                     sessions: sessionCount(scenario),
+                    onEdit: onEdit,
+                    onDelete: onDelete,
                   ),
                 const SizedBox(height: 7),
               ],
@@ -142,8 +150,15 @@ class _CategoryCard extends StatelessWidget {
 class _ScenarioCard extends StatelessWidget {
   final RoleplayScenario scenario;
   final int sessions;
+  final ValueChanged<RoleplayScenario> onEdit;
+  final ValueChanged<RoleplayScenario> onDelete;
 
-  const _ScenarioCard({required this.scenario, required this.sessions});
+  const _ScenarioCard({
+    required this.scenario,
+    required this.sessions,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +210,45 @@ class _ScenarioCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 6),
+          if (scenario.custom)
+            PopupMenuButton<_ScenarioAction>(
+              tooltip: 'Manage ${scenario.title}',
+              color: _surface,
+              iconColor: _muted,
+              onSelected: (action) {
+                switch (action) {
+                  case _ScenarioAction.edit:
+                    onEdit(scenario);
+                    break;
+                  case _ScenarioAction.delete:
+                    onDelete(scenario);
+                    break;
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: _ScenarioAction.edit,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.edit_rounded, color: _text),
+                    title: Text('Edit'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _ScenarioAction.delete,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      Icons.delete_outline_rounded,
+                      color: _warning,
+                    ),
+                    title: Text('Delete'),
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(width: 2),
           IconButton.filled(
             tooltip: 'Start ${scenario.title}',
             style: IconButton.styleFrom(
@@ -340,8 +393,9 @@ class _HistorySheet extends StatelessWidget {
 
 class _ScenarioBuilderDialog extends StatefulWidget {
   final RoleplayApi api;
+  final RoleplayScenario? initialScenario;
 
-  const _ScenarioBuilderDialog({required this.api});
+  const _ScenarioBuilderDialog({required this.api, this.initialScenario});
 
   @override
   State<_ScenarioBuilderDialog> createState() => _ScenarioBuilderDialogState();

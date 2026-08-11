@@ -31,6 +31,25 @@ Do not implement the use case directly in `main.py`.
 
 Do not put a feature-only widget in `shared` or make a new global service.
 
+## Change the operations dashboard
+
+1. Decide whether the change is a backend aggregate/command, dashboard
+   presentation, or both.
+2. Update `features/admin/presentation.py` and the matching React component in
+   the same contract change.
+3. Keep authentication/transport in `adminApi.js` and polling/error behavior in
+   `Dashboard.jsx`; never introduce fabricated operational fallback data.
+4. Keep authorization in backend middleware and audit every privileged write.
+5. Add backend contract/authorization tests and frontend transport coverage.
+6. Run `npm run lint`, `npm test`, and `npm run build` from `admin-dashboard/`.
+7. Update the dashboard README plus API/security and operations guides when
+   paths, proxying, health semantics, or deployment change.
+
+Every new `/admin` route must retain bearer authentication, current database
+administrator checks, safe response schemas, rate limits where appropriate,
+and server-side authorization. A hidden button, CORS rule, or private-looking
+URL is not an authorization boundary.
+
 ## Add an API operation to Flutter
 
 1. Add it to the owning feature API/repository.
@@ -64,6 +83,34 @@ Classify the change first:
 
 Add a deterministic test at the same authority boundary. Provider prompt-only
 changes are insufficient for rules that affect learning correctness.
+
+## Add or revise a weekly mission archetype
+
+Treat an archetype as a reviewed evidence contract, not just a topic prompt:
+
+1. keep its ID stable once persisted plans may reference it;
+2. choose one primary `context_family` and use `compatible_interest_ids` only
+   for themes the scenario can genuinely support;
+3. make each A1–B2 can-do progression increase linguistic independence rather
+   than simply adding abstract difficulty;
+4. name every fact, limitation, obstacle, disagreement, or edge case required
+   by an outcome in the premise or `setting_slots`;
+5. reduce models, phrase banks, and cues at higher levels without removing the
+   map, dataset, source text, rules, or case evidence needed to answer;
+6. use real-world subjects with supplied evidence; date or explicitly simulate
+   volatile travel details, and ground cultural material in respectful public
+   or community-authored sources without exposing restricted knowledge;
+7. avoid grading personal opinions or experiences as having one correct answer;
+8. check overlap with existing archetypes and give the new scenario a distinct
+   communicative product;
+9. add relevance and evidence-contract coverage in
+   `tests/learning_plan/generation/test_mission_archetypes.py`, then run planner
+   and weekly compiler tests.
+
+The selector ranks goal plus direct interest-context matches above scenarios
+that merely list the interest as a theme. Stable hashing chooses only within a
+relevance tier, so catalog additions provide variety without routinely
+displacing a more direct scenario.
 
 ## Add a roleplay scenario field
 
@@ -126,3 +173,5 @@ them; structural typing and parameter contracts can consume them.
 - Do Flutter analysis/tests and backend tests pass?
 - Are all `.py` and `.dart` files at or below 500 lines?
 - Are the README and relevant handbook pages still truthful?
+- If `/admin` changed, are authorization, auditability, safe errors, tests, and
+  deployment impact still explicit?

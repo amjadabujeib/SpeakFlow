@@ -1,5 +1,10 @@
 # Flutter architecture
 
+This page covers the Android learner client under `frontend/`. The React
+operations client under `admin-dashboard/` has a separate dependency graph and
+is documented in [Operations dashboard](14-admin-dashboard.md); it does not use
+Riverpod, `ApiClient`, or Flutter session state.
+
 ## Application startup
 
 `frontend/lib/main.dart` is the Flutter composition entrypoint:
@@ -9,12 +14,17 @@
 3. restore the authenticated session from device storage;
 4. restore UI preferences;
 5. register learner-state reset behavior for signout;
-6. lock the app to portrait orientations;
-7. run a Riverpod `ProviderScope` containing `SpeakFlowApp`.
+6. enable Android edge-to-edge rendering with explicit system-bar contrast;
+7. lock the app to portrait orientations;
+8. run `SpeakFlowApp` in the initialized Riverpod container.
 
-`SpeakFlowApp` builds a dark `MaterialApp.router`. An `AnimatedBuilder` applies
-the selected text scale through `MediaQuery` without rebuilding the router
-configuration.
+`SpeakFlowApp` is a `ConsumerWidget` that watches provider-owned `AppState` and
+builds a dark `MaterialApp.router`. Its builder combines the selected text
+scale with the device accessibility scale, bounded to 0.85–2.0.
+
+`MainShell` applies safe-area insets and keeps the outer bottom-navigation
+destinations at a stable distance from phone edges rather than allowing wider
+phones to pull them toward the center.
 
 ## Feature-first layout
 
@@ -33,7 +43,6 @@ lib/
     news/
     practice/
     shell/
-  shared/widgets/      widgets genuinely reused across features
 ```
 
 A feature owns its data adapters and UI. Code moves to `core` only when it is
@@ -41,10 +50,9 @@ application-wide and to `shared` only when multiple features genuinely use it.
 
 ## Dependency composition
 
-`app/providers.dart` creates one `AppDependencies` object around one
-authenticated `ApiClient`. It constructs focused adapters for authentication,
-roleplay, language tools, news, pronunciation, and learning plans, then exposes
-them through Riverpod providers.
+`app/providers.dart` lets one Riverpod container own `AppState`, the session
+store, `AppDependencies`, the authenticated `ApiClient`, focused feature APIs,
+and the PLP repository. `app/router.dart` exposes the provider-owned router.
 
 This gives tests and future controllers a stable injection point without
 requiring screens to know URL construction, authorization headers, or JSON
@@ -151,7 +159,7 @@ contract or is shared by another feature.
 - Pronunciation launches with a target and returns trusted backend evidence.
 - Roleplay feedback distinguishes text categories, spoken delivery estimates,
   and recognition uncertainty.
-- Signout clears learner-specific singleton and file state before another user
+- Signout clears learner-specific provider and file state before another user
   can see it.
 
 ## Error and retry behavior

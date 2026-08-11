@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
@@ -18,17 +19,18 @@ const _border = Color(0xFF263550);
 typedef RoleplayTranscriptLoader =
     Future<Map<String, dynamic>> Function(String clientSessionId);
 
-class RoleplayHistoryScreen extends StatefulWidget {
+class RoleplayHistoryScreen extends ConsumerStatefulWidget {
   final RoleplayHistoryArgs args;
   final RoleplayTranscriptLoader? loader;
 
   const RoleplayHistoryScreen({super.key, required this.args, this.loader});
 
   @override
-  State<RoleplayHistoryScreen> createState() => _RoleplayHistoryScreenState();
+  ConsumerState<RoleplayHistoryScreen> createState() =>
+      _RoleplayHistoryScreenState();
 }
 
-class _RoleplayHistoryScreenState extends State<RoleplayHistoryScreen> {
+class _RoleplayHistoryScreenState extends ConsumerState<RoleplayHistoryScreen> {
   RoleplayTranscript? _transcript;
   String? _error;
   bool _loading = true;
@@ -47,8 +49,7 @@ class _RoleplayHistoryScreenState extends State<RoleplayHistoryScreen> {
       });
     }
     try {
-      final loader =
-          widget.loader ?? AppDependencies.instance.roleplay.transcript;
+      final loader = widget.loader ?? ref.read(roleplayApiProvider).transcript;
       final value = await loader(widget.args.clientSessionId);
       final transcript = RoleplayTranscript.fromJson(value);
       if (!transcript.readOnly) {

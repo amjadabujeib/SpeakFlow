@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 
 import '../../app/providers.dart';
@@ -11,7 +12,7 @@ const _text = Color(0xFFF1F5FF);
 const _muted = Color(0xFF8896B0);
 const _border = Color(0xFF263550);
 
-class RoleplayLanguageHelpSheet extends StatefulWidget {
+class RoleplayLanguageHelpSheet extends ConsumerStatefulWidget {
   final List<RoleplayObjective> objectives;
   final List<String> phrases;
   final ValueChanged<String> onSelect;
@@ -24,11 +25,12 @@ class RoleplayLanguageHelpSheet extends StatefulWidget {
   });
 
   @override
-  State<RoleplayLanguageHelpSheet> createState() =>
+  ConsumerState<RoleplayLanguageHelpSheet> createState() =>
       _RoleplayLanguageHelpSheetState();
 }
 
-class _RoleplayLanguageHelpSheetState extends State<RoleplayLanguageHelpSheet> {
+class _RoleplayLanguageHelpSheetState
+    extends ConsumerState<RoleplayLanguageHelpSheet> {
   final TextEditingController _arabicController = TextEditingController();
   List<RoleplayEscapeOption> _options = const [];
   bool _loading = false;
@@ -44,7 +46,8 @@ class _RoleplayLanguageHelpSheetState extends State<RoleplayLanguageHelpSheet> {
       _options = const [];
     });
     try {
-      final result = await AppDependencies.instance.roleplay
+      final result = await ref
+          .read(roleplayApiProvider)
           .arabicTranslationOptions(source);
       final rawOptions = result['options'];
       if (rawOptions is! List) {

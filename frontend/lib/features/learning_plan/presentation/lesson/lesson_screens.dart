@@ -1,24 +1,22 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:record/record.dart';
 
 import '../../../../app/providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/plp_repository.dart';
 import '../../domain/plp_models.dart';
+import 'lesson_guided_speaking_page.dart';
+import 'lesson_pronunciation_feedback.dart';
+import 'lesson_pronunciation_page.dart';
 
 part 'lesson_controller.dart';
 part 'lesson_content_widgets.dart';
 part 'lesson_pronunciation_widgets.dart';
 part 'lesson_question_widgets.dart';
 part 'lesson_completion_widgets.dart';
-part 'lesson_guided_speaking_page.dart';
-part 'lesson_pronunciation_page.dart';
 part 'lesson_feedback_widgets.dart';
 part 'lesson_common_widgets.dart';
 
@@ -40,24 +38,28 @@ class LessonResult {
   });
 }
 
-class InteractiveLessonScreen extends StatefulWidget {
+class InteractiveLessonScreen extends ConsumerStatefulWidget {
   final PlpLesson lesson;
   final Future<PlpAttemptResult> Function(String, JsonMap)? submitAttempt;
   final Set<String> completedActivityIds;
+  final Map<String, PronunciationActivityProgress>
+  pronunciationActivityProgress;
 
   const InteractiveLessonScreen({
     super.key,
     required this.lesson,
     this.submitAttempt,
     this.completedActivityIds = const {},
+    this.pronunciationActivityProgress = const {},
   });
 
   @override
-  State<InteractiveLessonScreen> createState() =>
+  ConsumerState<InteractiveLessonScreen> createState() =>
       _InteractiveLessonScreenState();
 }
 
-class _InteractiveLessonScreenState extends State<InteractiveLessonScreen> {
+class _InteractiveLessonScreenState
+    extends ConsumerState<InteractiveLessonScreen> {
   void _update(VoidCallback change) => setState(change);
 
   final PageController _pageController = PageController();
@@ -71,12 +73,25 @@ class _InteractiveLessonScreenState extends State<InteractiveLessonScreen> {
   final Set<String> _initialCorrectQuestionIds = {};
   final Set<String> _correctedQuestionIds = {};
   late final Set<String> _submittedActivityIds = {
-    ...widget.completedActivityIds,
+    if (widget.lesson.type != PlpLessonType.assessment)
+      ...widget.completedActivityIds,
   };
   final Map<String, String> _serverExplanations = {};
   final Map<String, JsonMap> _serverCorrectResponses = {};
   final Map<String, List<String>> _orderedAnswers = {};
-  final Map<String, Set<String>> _passedPronunciationTargets = {};
+  late final Map<String, Set<String>> _completedPronunciationTargets = {
+    if (widget.lesson.type != PlpLessonType.assessment)
+      for (final entry in widget.pronunciationActivityProgress.entries)
+        entry.key: {
+          ...entry.value.verifiedTargetKeys,
+          ...entry.value.unverifiedTargetKeys,
+        },
+  };
+  late final Map<String, Set<String>> _unverifiedPronunciationTargets = {
+    if (widget.lesson.type != PlpLessonType.assessment)
+      for (final entry in widget.pronunciationActivityProgress.entries)
+        entry.key: {...entry.value.unverifiedTargetKeys},
+  };
   final Map<String, JsonMap> _guidedSpeakingResults = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -139,12 +154,14 @@ class _InteractiveLessonScreenState extends State<InteractiveLessonScreen> {
   @override
   Widget build(BuildContext context) {
     if (_showCompletion) return _buildCompletion();
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            if (!keyboardVisible) _buildHeader(),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -156,7 +173,7 @@ class _InteractiveLessonScreenState extends State<InteractiveLessonScreen> {
                     : _buildActivity(_activities[index - 1]),
               ),
             ),
-            _buildBottomBar(),
+            _buildBottomBar(compact: keyboardVisible),
           ],
         ),
       ),

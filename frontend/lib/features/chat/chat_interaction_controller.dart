@@ -64,7 +64,7 @@ extension _ChatInteractionController on _ChatScreenState {
   }
 
   void _openHelp() {
-    final unfinished = widget.scenario.objectives.where((objective) {
+    final unfinished = _scenario.objectives.where((objective) {
       final state = _objectiveState[objective.id];
       return state is! Map || state['completed'] != true;
     }).toList();
@@ -77,7 +77,7 @@ extension _ChatInteractionController on _ChatScreenState {
       ),
       builder: (_) => RoleplayLanguageHelpSheet(
         objectives: unfinished,
-        phrases: widget.scenario.targetLanguage,
+        phrases: _scenario.targetLanguage,
         onSelect: (value) {
           _textController.text = value;
           _textController.selection = TextSelection.collapsed(

@@ -12,7 +12,7 @@ class RoleplayRecognitionCheck {
   factory RoleplayRecognitionCheck.fromJson(Map<String, dynamic> json) {
     return RoleplayRecognitionCheck(
       word: json['word']?.toString() ?? '',
-      confidence: (json['confidence'] as num?)?.round() ?? 0,
+      confidence: ((json['confidence'] as num?)?.round() ?? 0).clamp(0, 100),
       reason: json['reason']?.toString() ?? 'recognizer_uncertain',
     );
   }
@@ -91,6 +91,7 @@ class RoleplayFeedbackData {
   }
 
   List<Map<String, dynamic>> get scenarioEvidence {
+    if (!eligible) return const [];
     final raw = evidence['scenario_evidence'];
     return raw is List
         ? raw
@@ -113,22 +114,31 @@ class RoleplayFeedbackData {
     );
     final rawRecognition = evaluation['recognition_checks'];
     final rawCorrections = json['corrections'];
+    final eligible = evaluation['eligible'] == true;
     return RoleplayFeedbackData(
       scenario:
           rawScenario['title']?.toString() ??
           session['scenario']?.toString() ??
           'Roleplay',
       icon: rawScenario['icon']?.toString() ?? '🎭',
-      messageCount: (session['message_count'] as num?)?.round() ?? 0,
-      durationSeconds: (session['duration_seconds'] as num?)?.round() ?? 0,
-      eligible: evaluation['eligible'] == true,
+      messageCount: ((session['message_count'] as num?)?.round() ?? 0).clamp(
+        0,
+        500,
+      ),
+      durationSeconds: ((session['duration_seconds'] as num?)?.round() ?? 0)
+          .clamp(0, 21600),
+      eligible: eligible,
       objectiveCompleted: evaluation['scenario_completed'] == true,
       evidenceNote:
           evaluation['eligibility_note']?.toString() ??
           'Keep practicing to build a reliable evaluation.',
       scores: {
         for (final entry in rawScores.entries)
-          entry.key: entry.value is num ? (entry.value as num).round() : null,
+          entry.key:
+              entry.value is num &&
+                  (eligible || entry.key == 'task_achievement')
+              ? (entry.value as num).round().clamp(0, 100)
+              : null,
       },
       evidence: Map<String, dynamic>.from(evaluation['evidence'] as Map? ?? {}),
       recognitionChecks: rawRecognition is List

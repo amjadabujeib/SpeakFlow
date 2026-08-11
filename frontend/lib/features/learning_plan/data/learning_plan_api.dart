@@ -15,10 +15,14 @@ class LearningPlanApi {
     await _client.put('/learners/local/profile', body: profile),
   );
 
-  Future<JsonMap> generate() async => _client.decodeMap(
-    await _client.post('/plp/generations'),
-    successStatuses: const {200, 202},
-  );
+  Future<JsonMap> generate({bool regenerate = false}) async =>
+      _client.decodeMap(
+        await _client.post(
+          '/plp/generations',
+          body: regenerate ? const {'regenerate': true} : null,
+        ),
+        successStatuses: const {200, 202},
+      );
 
   Future<JsonMap> generationStatus(String jobId) async =>
       _client.decodeMap(await _client.get('/plp/generations/$jobId'));

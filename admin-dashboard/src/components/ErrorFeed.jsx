@@ -54,7 +54,7 @@ const ErrorFeed = ({ data }) => {
                 wordBreak: 'break-word',
                 fontFamily: 'monospace',
               }}>
-                {err.error || 'Unknown error'}
+                [{err.failure_kind}] {err.message}
               </pre>
             </div>
           ))}

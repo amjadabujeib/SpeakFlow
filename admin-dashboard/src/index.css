@@ -64,11 +64,197 @@ p {
   padding: 2rem;
 }
 
+.dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-header h1 {
+  margin-bottom: 0.25rem;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  width: fit-content;
+  margin-bottom: 2rem;
+  padding: 0.35rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-bar button {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: calc(var(--radius-lg) - 4px);
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tab-bar button.active {
+  color: white;
+  background: var(--primary-color);
+  font-weight: 600;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.login-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.login-card h1 {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.login-card h2 {
+  margin-bottom: 0;
+}
+
+.login-card label {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  background: rgba(15, 23, 42, 0.7);
+  font: inherit;
+}
+
+.login-card input:focus {
+  border-color: var(--primary-color);
+  outline: 2px solid rgba(99, 102, 241, 0.25);
+}
+
+.error-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: var(--radius-md);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.25);
+}
+
+.dashboard-error {
+  margin-bottom: 1.5rem;
+}
+
+.loading-card {
+  padding: 4rem;
+  text-align: center;
+}
+
+.user-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.accent-stat {
+  color: var(--secondary-color);
+}
+
+.section-label {
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.monospace-cell {
+  font-family: monospace;
+}
+
+.empty-cell {
+  padding: 2rem;
+  text-align: center;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.full-width-card {
+  grid-column: 1 / -1;
+}
+
+.panel-heading,
+.directory-toolbar,
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.panel-heading {
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.directory-toolbar {
+  justify-content: flex-start;
+  margin-bottom: 1rem;
+}
+
+.directory-toolbar input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  background: rgba(15, 23, 42, 0.7);
+  font: inherit;
+}
+
+.pagination-controls {
+  justify-content: flex-end;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+}
+
+.result-count,
+.secondary-line {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.audit-detail {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+}
+
+.loading-message {
+  padding: 2rem;
+  text-align: center;
 }
 
 /* Glassmorphism Cards */
@@ -193,6 +379,16 @@ p {
   transform: scale(1.02);
 }
 
+.btn-secondary {
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .btn-danger {
   background-color: rgba(239, 68, 68, 0.1);
   color: var(--danger);
@@ -202,6 +398,32 @@ p {
 .btn-danger:hover {
   background-color: var(--danger);
   color: white;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 640px) {
+  .dashboard-header {
+    flex-direction: column;
+  }
+
+  .tab-bar {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .user-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-heading,
+  .directory-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 /* Loading animations */

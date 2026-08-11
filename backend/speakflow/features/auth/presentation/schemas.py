@@ -61,6 +61,7 @@ class AuthUserView(StrictAuthModel):
     kind: Literal["registered", "guest", "local_guest"]
     email: str | None = None
     display_name: str
+    is_admin: bool = False
 
 
 class AuthSessionView(StrictAuthModel):

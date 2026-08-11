@@ -1,12 +1,11 @@
 """Create the PLP v2 PostgreSQL schema."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
-import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-
 
 revision: str = "20260716_01"
 down_revision: str | None = None

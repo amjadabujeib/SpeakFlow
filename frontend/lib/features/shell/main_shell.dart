@@ -1,43 +1,23 @@
 // lib/features/shell/main_shell.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speakflow/core/theme/local_fonts.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/providers/app_state.dart';
-import '../../shared/widgets/settings_drawer.dart';
+import '../../app/providers.dart';
+import 'settings/settings_drawer.dart';
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   final String location;
   final Widget child;
   const MainShell({super.key, required this.location, required this.child});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
-  final AppState _appState = AppState();
+class _MainShellState extends ConsumerState<MainShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  late int _planRefreshToken;
-
-  @override
-  void initState() {
-    super.initState();
-    _planRefreshToken = _appState.planRefreshToken;
-    _appState.addListener(_onStateChanged);
-  }
-
-  @override
-  void dispose() {
-    _appState.removeListener(_onStateChanged);
-    super.dispose();
-  }
-
-  void _onStateChanged() {
-    final nextToken = _appState.planRefreshToken;
-    if (!mounted || nextToken == _planRefreshToken) return;
-    setState(() => _planRefreshToken = nextToken);
-  }
 
   static const _tabs = ['/home', '/practice', '/chat', '/news'];
 
@@ -58,10 +38,11 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = ref.watch(appStateProvider);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
-      endDrawer: SettingsDrawer(appState: _appState),
+      endDrawer: SettingsDrawer(appState: appState),
       endDrawerEnableOpenDragGesture: false,
       body: SafeArea(
         bottom: false,
@@ -86,7 +67,7 @@ class _MainShellState extends State<MainShell> {
                 context: context,
                 removeTop: true,
                 child: KeyedSubtree(
-                  key: ValueKey(_planRefreshToken),
+                  key: ValueKey(appState.planRefreshToken),
                   child: widget.child,
                 ),
               ),
@@ -108,33 +89,48 @@ class _MainShellState extends State<MainShell> {
         top: false,
         child: SizedBox(
           height: 64,
-          child: Row(
-            children: [
-              _NavItem(
-                icon: Icons.home_rounded,
-                label: 'Home',
-                isSelected: _selectedIndex == 0,
-                onTap: () => _onTabTapped(0),
-              ),
-              _NavItem(
-                icon: Icons.mic_rounded,
-                label: 'Practice',
-                isSelected: _selectedIndex == 1,
-                onTap: () => _onTabTapped(1),
-              ),
-              _NavItem(
-                icon: Icons.chat_bubble_rounded,
-                label: 'Chat',
-                isSelected: _selectedIndex == 2,
-                onTap: () => _onTabTapped(2),
-              ),
-              _NavItem(
-                icon: Icons.newspaper_rounded,
-                label: 'News',
-                isSelected: _selectedIndex == 3,
-                onTap: () => _onTabTapped(3),
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = constraints.maxWidth - 8;
+              final candidateWidth = availableWidth / _tabs.length;
+              final itemWidth = candidateWidth < 88 ? candidateWidth : 88.0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _NavItem(
+                      width: itemWidth,
+                      icon: Icons.home_rounded,
+                      label: 'Home',
+                      isSelected: _selectedIndex == 0,
+                      onTap: () => _onTabTapped(0),
+                    ),
+                    _NavItem(
+                      width: itemWidth,
+                      icon: Icons.mic_rounded,
+                      label: 'Practice',
+                      isSelected: _selectedIndex == 1,
+                      onTap: () => _onTabTapped(1),
+                    ),
+                    _NavItem(
+                      width: itemWidth,
+                      icon: Icons.chat_bubble_rounded,
+                      label: 'Chat',
+                      isSelected: _selectedIndex == 2,
+                      onTap: () => _onTabTapped(2),
+                    ),
+                    _NavItem(
+                      width: itemWidth,
+                      icon: Icons.newspaper_rounded,
+                      label: 'News',
+                      isSelected: _selectedIndex == 3,
+                      onTap: () => _onTabTapped(3),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -143,11 +139,13 @@ class _MainShellState extends State<MainShell> {
 }
 
 class _NavItem extends StatelessWidget {
+  final double width;
   final IconData icon;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
   const _NavItem({
+    required this.width,
     required this.icon,
     required this.label,
     required this.isSelected,
@@ -159,7 +157,8 @@ class _NavItem extends StatelessWidget {
     final activeColor = AppColors.primary;
     const inactiveColor = AppColors.textSecondary;
 
-    return Expanded(
+    return SizedBox(
+      width: width,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,

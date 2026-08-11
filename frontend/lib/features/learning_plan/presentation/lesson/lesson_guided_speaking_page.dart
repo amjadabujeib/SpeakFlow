@@ -1,21 +1,31 @@
-part of 'lesson_screens.dart';
+import 'dart:io';
 
-class _GuidedSpeakingPracticePage extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
+
+import '../../../../app/providers.dart';
+import '../../../../core/theme/app_colors.dart';
+
+class GuidedSpeakingPracticePage extends ConsumerStatefulWidget {
   final String prompt;
   final int minimumSeconds;
 
-  const _GuidedSpeakingPracticePage({
+  const GuidedSpeakingPracticePage({
+    super.key,
     required this.prompt,
     required this.minimumSeconds,
   });
 
   @override
-  State<_GuidedSpeakingPracticePage> createState() =>
+  ConsumerState<GuidedSpeakingPracticePage> createState() =>
       _GuidedSpeakingPracticePageState();
 }
 
 class _GuidedSpeakingPracticePageState
-    extends State<_GuidedSpeakingPracticePage> {
+    extends ConsumerState<GuidedSpeakingPracticePage> {
   final AudioRecorder _recorder = AudioRecorder();
   bool _recording = false;
   bool _processing = false;
@@ -81,7 +91,8 @@ class _GuidedSpeakingPracticePageState
           'Speak for at least ${widget.minimumSeconds} seconds before stopping.',
         );
       }
-      final result = await AppDependencies.instance.pronunciation
+      final result = await ref
+          .read(pronunciationApiProvider)
           .transcribeSpeaking(path);
       if (!mounted) return;
       if (result['error'] != null) {

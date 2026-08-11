@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/providers.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/providers/app_state.dart';
 import '../../../core/data/practice_word_store.dart';
 import '../../../core/data/phoneme_progress_store.dart';
 import '../data/plp_repository.dart';
@@ -17,7 +18,7 @@ part 'learning_plan_weeks.dart';
 part 'learning_plan_lessons.dart';
 part 'learning_plan_generation.dart';
 
-class LearningPlanScreen extends StatefulWidget {
+class LearningPlanScreen extends ConsumerStatefulWidget {
   final PlpRepository? repository;
   final VoidCallback? onPlanReady;
   final bool embedded;
@@ -32,10 +33,10 @@ class LearningPlanScreen extends StatefulWidget {
   });
 
   @override
-  State<LearningPlanScreen> createState() => _LearningPlanScreenState();
+  ConsumerState<LearningPlanScreen> createState() => _LearningPlanScreenState();
 }
 
-class _LearningPlanScreenState extends State<LearningPlanScreen> {
+class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
   late final PlpRepository _repository;
   PlpDocument? _document;
   Object? _loadError;
@@ -78,7 +79,7 @@ class _LearningPlanScreenState extends State<LearningPlanScreen> {
       });
       final generation = document.generation;
       _syncCooldownTimer(generation?.retryAvailableAt);
-      final trackedJobId = AppState().pendingGenerationJobId;
+      final trackedJobId = ref.read(appStateProvider).pendingGenerationJobId;
       if (managePolling && trackedJobId != null) {
         _startPolling(trackedJobId);
         return;
@@ -133,9 +134,8 @@ class _LearningPlanScreenState extends State<LearningPlanScreen> {
   }
 
   Future<void> _beginOnboarding() async {
-    final jobId = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(
+    final jobId = await Navigator.of(context, rootNavigator: true).push<String>(
+      MaterialPageRoute<String>(
         builder: (_) => PlpOnboardingScreen(repository: _repository),
       ),
     );
@@ -181,7 +181,7 @@ class _LearningPlanScreenState extends State<LearningPlanScreen> {
       }
       if (!_isGenerating(state) && readyWeeks > 0) {
         _pollTimer?.cancel();
-        AppState().clearTrackedPlanGeneration(jobId);
+        ref.read(appStateProvider).clearTrackedPlanGeneration(jobId);
         await _loadPlan(showLoader: false, managePolling: false);
         return;
       }
@@ -270,21 +270,30 @@ class _LearningPlanScreenState extends State<LearningPlanScreen> {
         document.statusOf(lesson) == PlpLessonStatus.locked) {
       return;
     }
-    final result = await Navigator.push<LessonResult>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => InteractiveLessonScreen(
-          lesson: lesson,
-          completedActivityIds:
-              document.progress.lessonStates[lesson.id]?.completedActivityIds
-                  .toSet() ??
-              const {},
-          submitAttempt: _repository.isRemote
-              ? _repository.submitAttempt
-              : null,
-        ),
-      ),
-    );
+    final result = await Navigator.of(context, rootNavigator: true)
+        .push<LessonResult>(
+          MaterialPageRoute<LessonResult>(
+            builder: (context) => InteractiveLessonScreen(
+              lesson: lesson,
+              completedActivityIds:
+                  document
+                      .progress
+                      .lessonStates[lesson.id]
+                      ?.completedActivityIds
+                      .toSet() ??
+                  const {},
+              pronunciationActivityProgress:
+                  document
+                      .progress
+                      .lessonStates[lesson.id]
+                      ?.pronunciationActivityProgress ??
+                  const {},
+              submitAttempt: _repository.isRemote
+                  ? _repository.submitAttempt
+                  : null,
+            ),
+          ),
+        );
     if (!mounted || result == null) return;
     if (_repository.isRemote) {
       await _loadPlan();

@@ -48,7 +48,11 @@ extension _GrammarInputWidgets on _GrammarCheckScreenState {
           Container(height: 1, color: _border.withValues(alpha: 0.5)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 // Character count
                 Container(
@@ -63,7 +67,7 @@ extension _GrammarInputWidgets on _GrammarCheckScreenState {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '$charCount/$_GrammarCheckScreenState._maxChars',
+                    '$charCount/${_GrammarCheckScreenState._maxChars}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -74,55 +78,60 @@ extension _GrammarInputWidgets on _GrammarCheckScreenState {
                     ),
                   ),
                 ),
-                const Spacer(),
-                // Clear button
-                if (_textCtrl.text.isNotEmpty)
-                  GestureDetector(
-                    onTap: _clearText,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _textSecondary.withValues(alpha: 0.4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_textCtrl.text.isNotEmpty) ...[
+                      GestureDetector(
+                        onTap: _clearText,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: _textSecondary.withValues(alpha: 0.4),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Clear',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _textSecondary,
+                            ),
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        'Clear',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _textSecondary,
+                      const SizedBox(width: 8),
+                    ],
+                    GestureDetector(
+                      onTap: _tryExample,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _accent.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: _accent.withValues(alpha: 0.3),
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '💡 Try Example',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _accent,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                const SizedBox(width: 8),
-                // Try example
-                GestureDetector(
-                  onTap: _tryExample,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _accent.withValues(alpha: 0.12),
-                      border: Border.all(color: _accent.withValues(alpha: 0.3)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '💡 Try Example',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _accent,
-                      ),
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),

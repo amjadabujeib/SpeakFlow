@@ -91,7 +91,6 @@ class _ArticleCardState extends State<_ArticleCard> {
                         ),
                       ),
 
-
                       // Expandable body
                       AnimatedSize(
                         duration: const Duration(milliseconds: 300),
@@ -223,7 +222,6 @@ class _ArticleCardState extends State<_ArticleCard> {
   Widget _buildBottomRow(_Article article) {
     return Row(
       children: [
-
         // Play / Pause / Buffer button
         GestureDetector(
           onTap: widget.isBuffering ? null : widget.onPlayToggle,

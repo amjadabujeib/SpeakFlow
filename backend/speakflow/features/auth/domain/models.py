@@ -12,6 +12,7 @@ class AuthenticatedUser:
     kind: Literal["registered", "guest", "local_guest"]
     email: str | None
     display_name: str
+    is_admin: bool = False
 
 
 @dataclass(frozen=True, slots=True)

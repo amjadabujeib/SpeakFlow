@@ -12,8 +12,10 @@ class LanguageToolsApi {
       return _client.decodeMap(
         await _client.post('/grammar/check', body: {'text': text}),
       );
-    } catch (error) {
-      return {'error': 'Connection failed. Is the backend running?\n$error'};
+    } on ApiException catch (error) {
+      return {'error': error.message};
+    } catch (_) {
+      return {'error': 'Could not reach the backend. Check your connection.'};
     }
   }
 
@@ -24,8 +26,8 @@ class LanguageToolsApi {
       );
     } on ApiException catch (error) {
       return {'error': error.message};
-    } catch (error) {
-      return {'error': 'Connection failed: $error'};
+    } catch (_) {
+      return {'error': 'Could not reach the backend. Check your connection.'};
     }
   }
 

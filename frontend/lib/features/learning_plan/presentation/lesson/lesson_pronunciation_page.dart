@@ -1,12 +1,26 @@
-part of 'lesson_screens.dart';
+import 'dart:io';
 
-class _LessonPronunciationPracticePage extends StatefulWidget {
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
+
+import '../../../../app/providers.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../data/plp_repository.dart';
+import '../../domain/plp_models.dart';
+import 'lesson_pronunciation_feedback.dart';
+
+class LessonPronunciationPracticePage extends ConsumerStatefulWidget {
   final String initialTarget;
   final List<String> assignedTargets;
   final String? activityId;
   final String attemptSessionId;
 
-  const _LessonPronunciationPracticePage({
+  const LessonPronunciationPracticePage({
+    super.key,
     required this.initialTarget,
     required this.assignedTargets,
     required this.activityId,
@@ -14,12 +28,12 @@ class _LessonPronunciationPracticePage extends StatefulWidget {
   });
 
   @override
-  State<_LessonPronunciationPracticePage> createState() =>
+  ConsumerState<LessonPronunciationPracticePage> createState() =>
       _LessonPronunciationPracticePageState();
 }
 
 class _LessonPronunciationPracticePageState
-    extends State<_LessonPronunciationPracticePage> {
+    extends ConsumerState<LessonPronunciationPracticePage> {
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
 
@@ -47,7 +61,8 @@ class _LessonPronunciationPracticePageState
       _error = null;
     });
     try {
-      final audio = await AppDependencies.instance.languageTools
+      final audio = await ref
+          .read(languageToolsApiProvider)
           .synthesizeSpeech(_target);
       await _player.play(BytesSource(audio));
     } catch (_) {
@@ -113,15 +128,17 @@ class _LessonPronunciationPracticePageState
       return;
     }
     try {
-      final decoded = await AppDependencies.instance.pronunciation.score(
-        _target,
-        path,
-        activityId: widget.activityId,
-        attemptSessionId: widget.activityId == null
-            ? null
-            : widget.attemptSessionId,
-        submissionId: _submissionId,
-      );
+      final decoded = await ref
+          .read(pronunciationApiProvider)
+          .score(
+            _target,
+            path,
+            activityId: widget.activityId,
+            attemptSessionId: widget.activityId == null
+                ? null
+                : widget.attemptSessionId,
+            submissionId: _submissionId,
+          );
       if (!mounted) return;
       if (decoded['error'] != null) {
         setState(() {
@@ -162,6 +179,7 @@ class _LessonPronunciationPracticePageState
     final analysis = _result?['analysis'] is List
         ? _result!['analysis'] as List
         : const [];
+    final feedbackKind = _result?['feedback_kind']?.toString();
     final targetIndex = widget.assignedTargets.indexWhere(
       (item) => item.trim().toLowerCase() == _target.toLowerCase(),
     );
@@ -266,7 +284,7 @@ class _LessonPronunciationPracticePageState
             ),
             if (_error case final error?) ...[
               const SizedBox(height: 18),
-              _LessonPracticeMessage(
+              LessonPracticeMessage(
                 color: Colors.red,
                 icon: Icons.error_outline,
                 text: error,
@@ -274,7 +292,7 @@ class _LessonPronunciationPracticePageState
             ],
             if (_lessonAttempt case final attempt?) ...[
               const SizedBox(height: 18),
-              _LessonPracticeMessage(
+              LessonPracticeMessage(
                 color: attempt.correct == true ? Colors.green : Colors.orange,
                 icon: attempt.correct == true ? Icons.verified : Icons.replay,
                 text: attempt.explanation,
@@ -292,19 +310,19 @@ class _LessonPronunciationPracticePageState
                 ),
               ),
               const Text(
-                'Overall pronunciation quality',
+                'Acoustic quality estimate (feedback only)',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 18),
               for (final metric in const [
-                ('Accuracy', 'accuracy'),
+                ('Acoustic accuracy estimate', 'accuracy'),
                 ('Fluency', 'fluency'),
                 ('Prosody', 'prosody'),
                 ('Completeness', 'completeness'),
               ])
                 if (scores[metric.$2] is num)
-                  _LessonScoreBar(
+                  LessonScoreBar(
                     label: metric.$1,
                     score: (scores[metric.$2] as num).round(),
                   ),
@@ -322,20 +340,26 @@ class _LessonPronunciationPracticePageState
                 children: [
                   for (final raw in analysis)
                     if (raw is Map)
-                      _LessonPhoneChip(data: Map<String, dynamic>.from(raw)),
+                      LessonPhoneChip(data: Map<String, dynamic>.from(raw)),
                 ],
               ),
             ],
             if (_result?['feedback'] case final String feedback
                 when feedback.isNotEmpty) ...[
               const SizedBox(height: 18),
-              _LessonPracticeMessage(
-                color: Colors.blue,
-                icon: Icons.tips_and_updates_outlined,
+              LessonPracticeMessage(
+                color: feedbackKind == 'verified'
+                    ? Colors.green
+                    : feedbackKind == 'correction' || feedbackKind == 'guidance'
+                    ? Colors.orange
+                    : Colors.blue,
+                icon: feedbackKind == 'verified'
+                    ? Icons.verified
+                    : Icons.tips_and_updates_outlined,
                 text: feedback,
               ),
             ],
-            if (_lessonAttempt?.correct == true) ...[
+            if (_lessonAttempt?.pronunciationTargetCompleted == true) ...[
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: () => Navigator.pop(context, _lessonAttempt),

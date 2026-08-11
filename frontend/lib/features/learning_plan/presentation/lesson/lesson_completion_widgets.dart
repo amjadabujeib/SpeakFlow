@@ -63,7 +63,7 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
     final result = await Navigator.push<JsonMap>(
       context,
       MaterialPageRoute(
-        builder: (_) => _GuidedSpeakingPracticePage(
+        builder: (_) => GuidedSpeakingPracticePage(
           prompt: activity.data['prompt'] as String,
           minimumSeconds: activity.data['minimum_seconds'] as int,
         ),
@@ -73,7 +73,7 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
     _update(() => _guidedSpeakingResults[activity.id] = result);
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildBottomBar({bool compact = false}) {
     final activity = _currentActivity;
     final isQuestion = activity?.isQuestion ?? false;
     final isChecked =
@@ -106,9 +106,13 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
         : _currentPage == _pageCount - 1
         ? 'FINISH LESSON'
         : 'CONTINUE';
+    final showBackButton =
+        _currentPage > 0 && !isChecked && !_reviewingMistakes;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(12, 6, 12, 6)
+          : const EdgeInsets.fromLTRB(18, 12, 18, 16),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
@@ -117,20 +121,19 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
         top: false,
         child: Row(
           children: [
-            if (_currentPage > 0 && !isChecked && !_reviewingMistakes)
+            if (showBackButton && !compact) ...[
               TextButton(
                 onPressed: () => _pageController.previousPage(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOut,
                 ),
                 child: const Text('BACK'),
-              )
-            else
-              const SizedBox(width: 70),
-            const SizedBox(width: 10),
+              ),
+              const SizedBox(width: 10),
+            ],
             Expanded(
               child: SizedBox(
-                height: 54,
+                height: compact ? 46 : 54,
                 child: FilledButton(
                   onPressed: enabled
                       ? (needsCheck ? _checkCurrentAnswer : _continue)
@@ -151,8 +154,8 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
                         )
                       : Text(
                           buttonLabel,
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: TextStyle(
+                            fontSize: compact ? 14 : 16,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.5,
                           ),

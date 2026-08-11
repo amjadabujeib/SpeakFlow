@@ -3,10 +3,11 @@
 ## Contract families
 
 FastAPI exposes generated OpenAPI documentation at `/docs` when the backend is
-running. HTTP feature routes use one unversioned `/api` namespace.
+running. Learner HTTP feature routes use one unversioned `/api` namespace; the
+authenticated operations routes use the separate `/admin` prefix.
 
 - **`/health`**
-  - **Purpose:** Lightweight process/capability state
+  - **Purpose:** Minimal database/worker/reviewed-catalog readiness state
   - **Authentication:** public
 
 - **`/api/auth/*`**
@@ -26,7 +27,8 @@ running. HTTP feature routes use one unversioned `/api` namespace.
   - **Authentication:** bearer
 
 - **`/api/roleplay/*`**
-  - **Purpose:** scenarios, custom scenarios, sessions, history
+  - **Purpose:** scenarios, authenticated custom-scenario create/edit/delete,
+    sessions, and history
   - **Authentication:** bearer
 
 - **`/ws/chat`**
@@ -55,11 +57,36 @@ running. HTTP feature routes use one unversioned `/api` namespace.
 
 - **`/api/tts`**
   - **Purpose:** cached speech
-  - **Authentication:** public GET or protected POST according to middleware policy
+  - **Authentication:** bearer-protected POST
+
+- **`/admin/dashboard`, `/admin/learning`, `/admin/roleplay`, `/admin/errors`**
+  - **Purpose:** global operational summaries
+  - **Authentication:** bearer plus persisted administrator capability
+
+- **`/admin/users`, `/admin/audit-events`**
+  - **Purpose:** paginated account search and immutable privileged-action history
+  - **Authentication:** bearer plus persisted administrator capability
+
+- **`/admin/users/{user_id}/revoke`**
+  - **Purpose:** audited revocation of active sessions for one user UUID
+  - **Authentication:** bearer plus persisted administrator capability
 
 The project has no `/api/v1` aliases. Flutter and FastAPI are released together,
 so breaking contract changes are coordinated directly rather than maintained as
 parallel API versions.
+
+## Administrator authorization
+
+The middleware explicitly treats `/admin` as protected even though it is
+outside the learner `/api` namespace. It authenticates the opaque bearer token,
+loads the current user row, rejects non-admin users with 403, stores the actor
+on request state, and binds the same identity context used elsewhere.
+
+Public signup cannot request `is_admin`. A local CLI grants or removes the
+capability, revokes pre-change sessions, and audits the change. Session
+revocation requires a validated reason and atomically records actor, target,
+count, and time. The dashboard sends bearer headers with browser credentials
+disabled, so authorization does not depend on cookies or CORS.
 
 ## Bearer authentication
 
@@ -79,10 +106,13 @@ restoration and adds it through `ApiClient`.
 
 - Passwords use `hashlib.scrypt` with per-password random salt.
 - Comparison uses constant-time `hmac.compare_digest`.
-- Registered sessions last 30 days.
+- Registered learner sessions last 30 days.
+- New administrator sessions last eight hours.
 - Guest sessions last seven days.
 - Registered accounts retain at most five active sessions.
-- Signing out revokes one registered session.
+- Online signout revokes one registered session. If the backend is unreachable,
+  Flutter still removes the local credential and reports that server revocation
+  could not be confirmed.
 - Signing out a guest deletes the unrecoverable guest and owned data.
 
 ## Input validation
@@ -97,10 +127,14 @@ duration, clipping, and speech presence.
 
 ## Rate limiting
 
-`ProcessSharedRateLimiter` uses a small SQLite-backed fixed window so multiple
-backend workers on the same host share counts. Sensitive/expensive paths have
-specific limits: authentication, TTS, image proxy, pronunciation, and speaking
-transcription. A limited response is HTTP 429 with `Retry-After`.
+`ProcessSharedRateLimiter` uses a small indexed SQLite-backed fixed window so
+multiple backend workers on the same host share counts. Public/authentication
+limits are keyed by client address; authenticated expensive paths are keyed by
+the persisted user ID so unrelated learners behind one network do not consume
+one another's quota. Specific limits cover authentication, PLP generation,
+grammar/dictionary/translation providers, scenario drafts, news, TTS, image
+proxy, pronunciation, speaking transcription, admin reads, and the stricter
+admin revocation command. A limited response is HTTP 429 with `Retry-After`.
 
 Provider rate limits are separate. PLP generation stores the provider reset
 time in the durable job and resumes later rather than busy-looping.

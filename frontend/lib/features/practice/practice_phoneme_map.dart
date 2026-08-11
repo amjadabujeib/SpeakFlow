@@ -52,7 +52,8 @@ class _PhonemeMapSection extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Complete a scripted pronunciation recording to start your '
-                  'map. Only phones with acoustic evidence receive a score.',
+                  'map. It averages acoustic quality from transcript-verified '
+                  'recordings; it is not a correctness or mastery verdict.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
                     color: _textSecondary,
@@ -78,7 +79,7 @@ class _PhonemeMapSection extends StatelessWidget {
         _LegendRow().animate().fadeIn(duration: 400.ms),
         const SizedBox(height: 12),
         Text(
-          '$observationCount acoustically scored phone '
+          '$observationCount transcript-verified acoustic phone '
           '${observationCount == 1 ? 'observation' : 'observations'}',
           textAlign: TextAlign.center,
           style: GoogleFonts.outfit(fontSize: 12, color: _textSecondary),
@@ -100,11 +101,11 @@ class _LegendRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _LegendDot(color: _error, label: 'Needs Work (<50%)'),
+        _LegendDot(color: _error, label: 'Acoustic <50%'),
         const SizedBox(width: 18),
-        _LegendDot(color: _warning, label: 'Fair (50–80%)'),
+        _LegendDot(color: _warning, label: 'Acoustic 50–80%'),
         const SizedBox(width: 18),
-        _LegendDot(color: _success, label: 'Good (>80%)'),
+        _LegendDot(color: _success, label: 'Acoustic >80%'),
       ],
     );
   }

@@ -9,6 +9,7 @@ import 'roleplay_models.dart';
 
 part 'chat_tab_widgets.dart';
 part 'chat_scenario_builder.dart';
+part 'chat_scenario_editor.dart';
 part 'chat_scenario_fields.dart';
 
 const _background = Color(0xFF090E1A);
@@ -104,6 +105,69 @@ class _ChatTabState extends ConsumerState<ChatTab> {
     });
   }
 
+  Future<void> _showEditScenario(RoleplayScenario current) async {
+    final updated = await showDialog<RoleplayScenario>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ScenarioBuilderDialog(
+        api: ref.read(roleplayApiProvider),
+        initialScenario: current,
+      ),
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      _scenarios = [
+        for (final scenario in _scenarios)
+          if (scenario.id == updated.id) updated else scenario,
+      ];
+      _expanded.add(updated.category);
+    });
+  }
+
+  Future<void> _deleteScenario(RoleplayScenario scenario) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete custom scenario?'),
+        content: Text(
+          '“${scenario.title}” will be removed from your scenario list. '
+          'Past and currently active sessions keep their saved scenario snapshot.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(roleplayApiProvider).deleteScenario(scenario.id);
+      if (!mounted) return;
+      setState(() {
+        _scenarios = _scenarios
+            .where((item) => item.id != scenario.id)
+            .toList(growable: false);
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Custom scenario deleted.')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
   Future<void> _showHistory() async {
     final selected = await showModalBottomSheet<RoleplayHistoryArgs>(
       context: context,
@@ -149,6 +213,8 @@ class _ChatTabState extends ConsumerState<ChatTab> {
                             _expanded.remove(entry.key);
                           }
                         }),
+                        onEdit: _showEditScenario,
+                        onDelete: _deleteScenario,
                       ),
                   ],
                 ),
