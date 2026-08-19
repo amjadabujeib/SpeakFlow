@@ -84,41 +84,6 @@ extension _ScenarioBuilderEditor on _ScenarioBuilderDialogState {
             icon: const Icon(Icons.add_rounded),
             label: const Text('Add goal'),
           ),
-        const SizedBox(height: 15),
-        _sectionTitle('Useful sentence starters'),
-        for (var index = 0; index < _phrases.length; index++)
-          _editablePhrase(index),
-        if (_phrases.length < 10)
-          TextButton.icon(
-            onPressed: () =>
-                _mutate(() => _phrases.add(TextEditingController())),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add phrase'),
-          ),
-        const SizedBox(height: 15),
-        _sectionTitle('Scenario-specific evaluation'),
-        Text(
-          'These scores complement task, interaction, grammar, vocabulary, and spoken-delivery measures.',
-          style: GoogleFonts.inter(color: _muted, fontSize: 10, height: 1.4),
-        ),
-        const SizedBox(height: 8),
-        for (var index = 0; index < _rubric.length; index++)
-          _editableRubric(index),
-        if (_rubric.length < 4)
-          TextButton.icon(
-            onPressed: () => _mutate(
-              () => _rubric.add(
-                _EditableRubric(
-                  id: _newId('quality'),
-                  label: '',
-                  description: '',
-                  weight: 1,
-                ),
-              ),
-            ),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add evaluation criterion'),
-          ),
         _errorView(),
       ],
     );

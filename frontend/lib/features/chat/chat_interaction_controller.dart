@@ -20,6 +20,17 @@ extension _ChatInteractionController on _ChatScreenState {
           jsonEncode({'type': 'audio_turn', 'turn_id': turnId}),
         );
         _channel!.sink.add(bytes);
+        Timer(const Duration(seconds: 20), () {
+          if (mounted && _waiting && _pendingTurnId == turnId) {
+            _update(() {
+              _waiting = false;
+              _pendingTurnId = null;
+            });
+            _showError(
+              'The server took too long to respond. Please try again.',
+            );
+          }
+        });
       } catch (error) {
         _recordingPaths.remove(turnId);
         try {

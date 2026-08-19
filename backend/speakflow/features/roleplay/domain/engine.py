@@ -19,7 +19,14 @@ from speakflow.features.roleplay.domain.catalog import (
     _rubric,
 )
 from speakflow.features.roleplay.domain.evaluation import (
+    bounded_score,
+    eligibility_evaluation_note,
     evaluation_availability_note,
+    fallback_interaction_score,
+    fallback_vocabulary_score,
+    recognition_review_checks,
+    trimmed_confidence_mean,
+    weighted_delivery_metric,
 )
 
 
@@ -184,11 +191,22 @@ def objective_progress(scenario: dict, state: dict) -> dict:
     completed_required = sum(
         1 for item in required if state.get(item["id"], {}).get("completed") is True
     )
+    if not required:
+        # No required objectives: complete when every objective is done.
+        all_done = all(
+            state.get(item["id"], {}).get("completed") is True for item in objectives
+        )
+        completed_flag = bool(objectives) and all_done
+    else:
+        completed_flag = completed_required == len(required)
     return {
         "score": round(100 * completed_weight / max(1, total_weight)),
-        "completed": completed_required == len(required) and bool(required),
-        "completed_count": completed_required,
-        "required_count": len(required),
+        "completed": completed_flag,
+        "completed_count": completed_required if required else sum(
+            1 for item in objectives
+            if state.get(item["id"], {}).get("completed") is True
+        ),
+        "required_count": len(required) if required else len(objectives),
     }
 
 
@@ -242,7 +260,7 @@ def aggregate_session(
         and math.isfinite(float(word["score"]))
         and 0 <= float(word["score"]) <= 1
     ]
-    confidence = _trimmed_mean(confidence_values)
+    confidence = trimmed_confidence_mean(confidence_values)
     timed_word_count = sum(
         1
         for item in spoken
@@ -256,8 +274,8 @@ def aggregate_session(
         if spoken_word_count
         else None
     )
-    raw_fluency = _weighted_metric(spoken, "fluency", "voiced_seconds")
-    raw_pitch_variation = _weighted_metric(
+    raw_fluency = weighted_delivery_metric(spoken, "fluency", "voiced_seconds")
+    raw_pitch_variation = weighted_delivery_metric(
         spoken,
         "pitch_variation",
         "voiced_seconds",
@@ -279,17 +297,17 @@ def aggregate_session(
     )
     task = objective_progress(scenario, objective_state)
     external = external_evaluation or {}
-    interaction = _bounded_score(external.get("interaction_score"))
-    vocabulary = _bounded_score(external.get("vocabulary_score"))
+    interaction = bounded_score(external.get("interaction_score"))
+    vocabulary = bounded_score(external.get("vocabulary_score"))
     interaction = (
         interaction
         if interaction is not None
-        else _fallback_interaction_score(successful)
+        else fallback_interaction_score(successful)
     )
     vocabulary = (
         vocabulary
         if vocabulary is not None
-        else _fallback_vocabulary_score(scenario, successful)
+        else fallback_vocabulary_score(scenario, successful)
     )
     enough_general = (
         len(successful) >= MIN_TURNS_FOR_EVALUATION
@@ -318,7 +336,7 @@ def aggregate_session(
         if not spoken
         else "mixed"
     )
-    review_words = _recognition_checks(spoken)
+    review_words = recognition_review_checks(spoken)
     return {
         "scenario": {
             "id": scenario.get("id"),
@@ -328,7 +346,7 @@ def aggregate_session(
         "mode": mode,
         "eligible": enough_general,
         "eligibility_note": evaluation_availability_note(
-            _eligibility_note(
+            eligibility_evaluation_note(
                 mode=mode,
                 turns=len(successful),
                 word_count=word_count,
@@ -372,127 +390,6 @@ def aggregate_session(
         },
         "recognition_checks": review_words,
     }
-
-
-def _fallback_interaction_score(turns: list[dict]) -> int | None:
-    if not turns:
-        return None
-    count_score = min(100, 35 + 13 * len(turns))
-    substantive = sum(1 for item in turns if item.get("word_count", 0) >= 4)
-    return round(0.6 * count_score + 0.4 * min(100, 25 * substantive))
-
-
-def _fallback_vocabulary_score(scenario: dict, turns: list[dict]) -> int | None:
-    if not turns:
-        return None
-    text = _normalize(" ".join(item.get("user_text", "") for item in turns))
-    targets = [
-        _normalize(item)
-        for item in scenario.get("target_language", [])
-        if _normalize(item)
-    ]
-    coverage = (
-        sum(1 for item in targets if item in text) / len(targets)
-        if targets
-        else 0
-    )
-    words = [item.casefold() for item in _WORD.findall(text)]
-    diversity = len(set(words)) / max(1, len(words))
-    return round(min(100, 45 + 35 * coverage + 20 * min(1.0, diversity / 0.65)))
-
-
-def _weighted_metric(turns: list[dict], metric: str, weight: str) -> int | None:
-    values: list[tuple[float, float]] = []
-    for item in turns:
-        metrics = item.get("delivery_metrics", {})
-        value = metrics.get(metric)
-        if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
-            continue
-        item_weight = metrics.get(weight)
-        safe_weight = (
-            float(item_weight)
-            if isinstance(item_weight, (int, float))
-            and math.isfinite(float(item_weight))
-            and float(item_weight) > 0
-            else 1.0
-        )
-        values.append((float(value), safe_weight))
-    if not values:
-        return None
-    weighted = sum(value * weight for value, weight in values) / sum(
-        weight for _, weight in values
-    )
-    return max(0, min(100, round(weighted)))
-
-
-def _trimmed_mean(values: list[float]) -> int | None:
-    if not values:
-        return None
-    ordered = sorted(values)
-    trim = int(len(ordered) * 0.1) if len(ordered) >= 10 else 0
-    kept = ordered[trim : len(ordered) - trim] if trim else ordered
-    return round(sum(kept) / len(kept))
-
-
-def _recognition_checks(turns: list[dict]) -> list[dict]:
-    weakest: dict[str, dict] = {}
-    for turn in turns:
-        for word in turn.get("word_feedback", []):
-            if not isinstance(word, dict):
-                continue
-            value = str(word.get("word", "")).strip()
-            score = word.get("score")
-            if (
-                not value
-                or not isinstance(score, (int, float))
-                or not math.isfinite(float(score))
-                or float(score) < 0
-                or float(score) >= 0.8
-            ):
-                continue
-            key = value.casefold()
-            candidate = {
-                "word": value,
-                "confidence": round(float(score) * 100),
-                "reason": "recognizer_uncertain",
-            }
-            if key not in weakest or candidate["confidence"] < weakest[key]["confidence"]:
-                weakest[key] = candidate
-    return sorted(weakest.values(), key=lambda item: item["confidence"])[:20]
-
-
-def _eligibility_note(
-    *,
-    mode: str,
-    turns: int,
-    word_count: int,
-    spoken_word_count: int,
-    voiced_seconds: float,
-    alignment_coverage: float | None,
-    enough_general: bool,
-    enough_spoken: bool,
-) -> str:
-    if not enough_general:
-        return (
-            f"Use at least {MIN_TURNS_FOR_EVALUATION} turns and "
-            f"{MIN_WORDS_FOR_LANGUAGE_EVALUATION} words for reliable language scores."
-        )
-    if mode == "text":
-        return "Enough text evidence for reliable practice scores."
-    if enough_spoken:
-        return "Enough conversation and spoken evidence for reliable practice scores."
-    return (
-        "Language scores have enough evidence. Speaking-delivery scores remain hidden "
-        f"until there are at least {MIN_TURNS_FOR_EVALUATION} spoken turns, "
-        f"{MIN_SPOKEN_WORDS} recognized words, {int(MIN_VOICED_SECONDS)} seconds "
-        "of clear speech, and sufficient word alignment."
-    )
-
-
-def _bounded_score(value: object) -> int | None:
-    if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
-        return None
-    return max(0, min(100, round(float(value))))
 
 
 def _normalize(value: str) -> str:

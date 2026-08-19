@@ -7,6 +7,7 @@ import json
 import os
 import re
 import threading
+import time
 
 from fastapi import HTTPException
 from gector import predict as gector_predict
@@ -47,7 +48,7 @@ def _groq_client() -> OpenAI | None:
                     # Interactive features intentionally stay on the primary
                     # key; the approved pool is reserved for costly PLP calls.
                     api_key=api_keys[0],
-                    timeout=90,
+                    timeout=25,
                     max_retries=0,
                 )
     return _general_groq_client
@@ -69,15 +70,31 @@ def _groq_chat(
         "messages": messages,
         "temperature": temperature,
         "reasoning_effort": "low",
-        "max_tokens": num_predict,
+        "max_tokens": max(num_predict, 500),
     }
     if json_mode:
         arguments["response_format"] = {"type": "json_object"}
-    response = client.chat.completions.create(**arguments)
-    content = (response.choices[0].message.content or "").strip()
-    if not content:
-        raise RuntimeError("Groq returned an empty response.")
-    return content
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = client.chat.completions.create(
+                **arguments,
+                timeout=15.0,
+            )
+            content = (response.choices[0].message.content or "").strip()
+            if not content:
+                raise RuntimeError("Groq returned an empty response.")
+            return content
+        except Exception as exc:
+            last_error = exc
+            error_str = str(exc).lower()
+            if ("429" in error_str or "rate_limit" in error_str) and attempt < 2:
+                time.sleep(0.8 * (2**attempt))
+                continue
+            raise
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Groq chat failed.")
 
 
 def _first_sentences(value: str, limit: int) -> str:

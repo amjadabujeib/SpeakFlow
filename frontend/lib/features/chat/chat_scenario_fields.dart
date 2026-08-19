@@ -34,34 +34,6 @@ class _EditableRubric {
   }
 }
 
-class _WeightMenu extends StatelessWidget {
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  const _WeightMenu({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButton<int>(
-      value: value,
-      dropdownColor: _cardInner,
-      underline: const SizedBox.shrink(),
-      iconEnabledColor: _muted,
-      style: GoogleFonts.inter(color: _text, fontSize: 11),
-      items: const [
-        DropdownMenuItem(value: 1, child: Text('1×')),
-        DropdownMenuItem(value: 2, child: Text('2×')),
-        DropdownMenuItem(value: 3, child: Text('3×')),
-        DropdownMenuItem(value: 4, child: Text('4×')),
-        DropdownMenuItem(value: 5, child: Text('5×')),
-      ],
-      onChanged: (value) {
-        if (value != null) onChanged(value);
-      },
-    );
-  }
-}
-
 class _BuilderChip extends StatelessWidget {
   final String label;
   final Color color;

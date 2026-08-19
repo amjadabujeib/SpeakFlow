@@ -25,7 +25,13 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
   void initState() {
     super.initState();
     final scenario = widget.initialScenario;
-    if (scenario == null) return;
+    if (scenario == null) {
+      if (widget.initialCategory != null &&
+          widget.initialCategory!.trim().isNotEmpty) {
+        _category.text = widget.initialCategory!.trim();
+      }
+      return;
+    }
     _category.text = scenario.category;
     _title.text = scenario.title;
     _description.text = scenario.description;
@@ -162,29 +168,53 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
     final objectiveValues = _objectives
         .where((item) => item.label.text.trim().length >= 3)
         .toList();
-    final phraseValues = _phrases
+    var phraseValues = _phrases
         .map((item) => item.text.trim())
         .where((item) => item.isNotEmpty)
         .toList();
-    final rubricValues = _rubric
+    if (phraseValues.length < 2) {
+      phraseValues = [
+        'I would like to',
+        'Could you clarify',
+        'The important detail is',
+        'So the next step is',
+      ];
+    }
+    var rubricValues = _rubric
         .where(
           (item) =>
               item.label.text.trim().length >= 3 &&
               item.description.text.trim().length >= 8,
         )
         .toList();
+    if (rubricValues.length < 2) {
+      rubricValues = [
+        _EditableRubric(
+          id: 'situational_clarity',
+          label: 'Situational clarity',
+          description:
+              'Communicates relevant needs and details clearly within the described situation.',
+          weight: 2,
+        ),
+        _EditableRubric(
+          id: 'outcome_management',
+          label: 'Outcome management',
+          description:
+              'Responds to the partner and works toward a clear result or next step.',
+          weight: 1,
+        ),
+      ];
+    }
     if (_category.text.trim().length < 2 ||
         _title.text.trim().length < 2 ||
         _description.text.trim().length < 8 ||
         _aiRole.text.trim().length < 3 ||
         _learnerRole.text.trim().length < 3 ||
         _opening.text.trim().length < 3 ||
-        objectiveValues.length < 3 ||
-        phraseValues.length < 2 ||
-        rubricValues.length < 2) {
+        objectiveValues.length < 3) {
       setState(
         () => _error =
-            'Keep at least 3 goals, 2 useful phrases, and 2 complete evaluation criteria.',
+            'Please provide scenario details, partner & learner roles, an opening message, and at least 3 conversation goals.',
       );
       return;
     }
@@ -357,11 +387,6 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
               label: 'Goal ${index + 1}',
             ),
           ),
-          const SizedBox(width: 7),
-          _WeightMenu(
-            value: item.weight,
-            onChanged: (value) => setState(() => item.weight = value),
-          ),
           IconButton(
             tooltip: 'Remove goal',
             onPressed: _objectives.length <= 3
@@ -370,76 +395,6 @@ class _ScenarioBuilderDialogState extends State<_ScenarioBuilderDialog> {
                     _objectives.removeAt(index).dispose();
                   }),
             icon: const Icon(Icons.close_rounded, color: _muted),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _editablePhrase(int index) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        children: [
-          Expanded(
-            child: _DialogField(
-              controller: _phrases[index],
-              label: 'Starter ${index + 1}',
-            ),
-          ),
-          IconButton(
-            tooltip: 'Remove phrase',
-            onPressed: _phrases.length <= 2
-                ? null
-                : () => setState(() {
-                    _phrases.removeAt(index).dispose();
-                  }),
-            icon: const Icon(Icons.close_rounded, color: _muted),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _editableRubric(int index) {
-    final item = _rubric[index];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _DialogField(
-                  controller: item.label,
-                  label: 'Criterion ${index + 1}',
-                ),
-              ),
-              _WeightMenu(
-                value: item.weight,
-                onChanged: (value) => setState(() => item.weight = value),
-              ),
-              IconButton(
-                tooltip: 'Remove criterion',
-                onPressed: _rubric.length <= 2
-                    ? null
-                    : () => setState(() {
-                        _rubric.removeAt(index).dispose();
-                      }),
-                icon: const Icon(Icons.close_rounded, color: _muted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
-          _DialogField(
-            controller: item.description,
-            label: 'What good performance looks like',
-            lines: 2,
           ),
         ],
       ),

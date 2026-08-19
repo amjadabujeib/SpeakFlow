@@ -91,12 +91,14 @@ class _ChatTabState extends ConsumerState<ChatTab> {
     }).length;
   }
 
-  Future<void> _showCreateScenario() async {
+  Future<void> _showCreateScenario({String? category}) async {
     final scenario = await showDialog<RoleplayScenario>(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          _ScenarioBuilderDialog(api: ref.read(roleplayApiProvider)),
+      builder: (_) => _ScenarioBuilderDialog(
+        api: ref.read(roleplayApiProvider),
+        initialCategory: category,
+      ),
     );
     if (!mounted || scenario == null) return;
     setState(() {
@@ -168,6 +170,79 @@ class _ChatTabState extends ConsumerState<ChatTab> {
     }
   }
 
+  Future<void> _deleteCategory(
+    String categoryName,
+    List<RoleplayScenario> categoryScenarios,
+  ) async {
+    final customScenarios = categoryScenarios.where((s) => s.custom).toList();
+    if (customScenarios.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '“$categoryName” only contains built-in scenarios which cannot be deleted.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final hasBuiltin = categoryScenarios.any((s) => !s.custom);
+    final count = customScenarios.length;
+    final noun = count == 1 ? 'scenario' : 'scenarios';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete “$categoryName” category?'),
+        content: Text(
+          hasBuiltin
+              ? 'This will permanently remove all $count custom $noun in this category. Built-in scenarios will remain.'
+              : 'This will permanently delete the “$categoryName” category and all $count of its $noun.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(count == 1 ? 'Delete 1 scenario' : 'Delete all $count'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final api = ref.read(roleplayApiProvider);
+      final customIds = customScenarios.map((s) => s.id).toSet();
+      await Future.wait(customScenarios.map((s) => api.deleteScenario(s.id)));
+      if (!mounted) return;
+      setState(() {
+        _scenarios = _scenarios
+            .where((item) => !customIds.contains(item.id))
+            .toList(growable: false);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            hasBuiltin
+                ? 'Deleted $count custom $noun from “$categoryName”.'
+                : 'Deleted category “$categoryName” ($count $noun).',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
   Future<void> _showHistory() async {
     final selected = await showModalBottomSheet<RoleplayHistoryArgs>(
       context: context,
@@ -215,6 +290,10 @@ class _ChatTabState extends ConsumerState<ChatTab> {
                         }),
                         onEdit: _showEditScenario,
                         onDelete: _deleteScenario,
+                        onAddScenario: () =>
+                            _showCreateScenario(category: entry.key),
+                        onDeleteCategory: () =>
+                            _deleteCategory(entry.key, entry.value),
                       ),
                   ],
                 ),

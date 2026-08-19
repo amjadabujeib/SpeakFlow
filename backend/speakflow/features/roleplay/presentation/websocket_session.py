@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 import tempfile
+import traceback
 
 import librosa
 from fastapi import WebSocket, WebSocketDisconnect
@@ -341,22 +342,20 @@ async def _roleplay_websocket_session(websocket: WebSocket):
                     activity = await asyncio.to_thread(
                         _speech_activity, audio_array, 16000
                     )
-                    if not activity["has_speech"]:
-                        raise RoleplayTurnInputError(
-                            "no clear speech was detected"
-                        )
                     async with runtime._chat_inference_lock:
                         whisper_ready = await asyncio.to_thread(
                             runtime._load_whisper_models
                         )
                         if not whisper_ready:
-                            raise RuntimeError("speech recognition is unavailable")
+                            raise RoleplayTurnInputError(
+                                "Speech recognition is temporarily unavailable"
+                            )
                         user_text, word_feedback = await asyncio.to_thread(
                             _transcribe_chat_audio, temp_audio_path
                         )
                     if not user_text:
                         raise RoleplayTurnInputError(
-                            "no clear English sentence was recognized"
+                            "No speech was recognized. Please try speaking into the microphone again."
                         )
                     fluency, pitch_variation = await asyncio.to_thread(
                         _chat_delivery_metrics,
@@ -430,6 +429,11 @@ async def _roleplay_websocket_session(websocket: WebSocket):
                 tts_tasks.add(task)
                 task.add_done_callback(tts_tasks.discard)
             except Exception as exc:
+                print(
+                    f"Roleplay turn failed for session {client_session_id}, turn {turn_id}: {exc}",
+                    flush=True,
+                )
+                traceback.print_exc()
                 safe_error = safe_roleplay_turn_error(exc)
                 await websocket.send_text(
                     json.dumps(

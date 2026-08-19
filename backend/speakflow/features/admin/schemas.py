@@ -22,6 +22,7 @@ class AdminHealthView(StrictAdminModel):
     postgres: str
     ollama: str
     groq: str
+    curriculum: str = "ready"
     plp_workers: int
     active_jobs: int
     models: AdminModelState

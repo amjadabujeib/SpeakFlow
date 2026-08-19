@@ -136,38 +136,68 @@ def _chat_word_feedback(word: dict) -> dict:
 
 
 def _transcribe_chat_audio(audio_path: str) -> tuple[str, list[dict]]:
-    audio_for_whisper = runtime.whisperx.load_audio(audio_path)
-    result = runtime.whisper_model.transcribe(audio_for_whisper, batch_size=16)
-    aligned = runtime.whisperx.align(
-        result["segments"],
-        runtime.align_model,
-        runtime.align_metadata,
-        audio_for_whisper,
-        runtime.device,
-        return_char_alignments=False,
-    )
-    text = "".join(segment["text"] for segment in aligned["segments"]).strip()
-    words = [
-        _chat_word_feedback(word)
-        for segment in aligned["segments"]
-        for word in segment.get("words", [])
-    ]
-    return text, words
+    try:
+        audio_for_whisper = runtime.whisperx.load_audio(audio_path)
+        result = runtime.whisper_model.transcribe(audio_for_whisper, batch_size=16)
+        segments = result.get("segments", [])
+        if not segments and hasattr(runtime.whisper_model, "model"):
+            try:
+                direct_segs, _ = runtime.whisper_model.model.transcribe(
+                    audio_for_whisper, vad_filter=False
+                )
+                segments = [{"text": s.text} for s in direct_segs if s.text.strip()]
+            except Exception:
+                segments = []
+        if not segments:
+            return "", []
+        try:
+            aligned = runtime.whisperx.align(
+                segments,
+                runtime.align_model,
+                runtime.align_metadata,
+                audio_for_whisper,
+                runtime.device,
+                return_char_alignments=False,
+            )
+            text = "".join(
+                segment.get("text", "") for segment in aligned.get("segments", [])
+            ).strip()
+            words = [
+                _chat_word_feedback(word)
+                for segment in aligned.get("segments", [])
+                for word in segment.get("words", [])
+            ]
+            return _normalize_display_text(text), words
+        except Exception as align_exc:
+            print(f"WhisperX alignment failed, falling back to raw transcription: {align_exc}")
+            text = "".join(segment.get("text", "") for segment in segments).strip()
+            words = [
+                {"word": w, "score": None, "start": None, "end": None}
+                for w in text.split()
+            ]
+            return _normalize_display_text(text), words
+    except Exception as exc:
+        print(f"WhisperX transcription failed: {exc}")
+        return "", []
 
 
 def _correct_chat_grammar(user_text: str) -> str | None:
-    corrected_list = gector_predict(
-        runtime.gector_model,
-        runtime.gector_tokenizer,
-        [user_text],
-        runtime.gector_encode,
-        runtime.gector_decode,
-        keep_confidence=0.0,
-        min_error_prob=0.0,
-        n_iteration=5,
-        batch_size=2,
-    )
-    if not corrected_list or not corrected_list[0]:
+    try:
+        corrected_list = gector_predict(
+            runtime.gector_model,
+            runtime.gector_tokenizer,
+            [user_text],
+            runtime.gector_encode,
+            runtime.gector_decode,
+            keep_confidence=0.0,
+            min_error_prob=0.0,
+            n_iteration=5,
+            batch_size=2,
+        )
+        if not corrected_list or not corrected_list[0]:
+            return None
+        corrected = _normalize_display_text(corrected_list[0])
+        return corrected if corrected != user_text else None
+    except Exception as exc:
+        print(f"Chat grammar correction failed: {exc}")
         return None
-    corrected = _normalize_display_text(corrected_list[0])
-    return corrected if corrected != user_text else None

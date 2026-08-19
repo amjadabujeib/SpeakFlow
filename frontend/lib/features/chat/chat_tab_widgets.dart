@@ -59,6 +59,8 @@ class _CategoryCard extends StatelessWidget {
   final VoidCallback onToggle;
   final ValueChanged<RoleplayScenario> onEdit;
   final ValueChanged<RoleplayScenario> onDelete;
+  final VoidCallback onAddScenario;
+  final VoidCallback? onDeleteCategory;
 
   const _CategoryCard({
     required this.title,
@@ -68,10 +70,13 @@ class _CategoryCard extends StatelessWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    required this.onAddScenario,
+    this.onDeleteCategory,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasCustom = scenarios.any((s) => s.custom);
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -103,6 +108,35 @@ class _CategoryCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Add scenario to $title',
+                    onPressed: onAddScenario,
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: _primary,
+                      size: 20,
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: hasCustom
+                        ? 'Delete $title category'
+                        : 'Built-in categories cannot be deleted',
+                    onPressed: onDeleteCategory,
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: hasCustom
+                          ? const Color(0xFFF87171)
+                          : _muted.withValues(alpha: .35),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
                   Text(
                     '${scenarios.length}',
                     style: GoogleFonts.inter(color: _muted, fontSize: 12),
@@ -133,7 +167,56 @@ class _CategoryCard extends StatelessWidget {
                     onEdit: onEdit,
                     onDelete: onDelete,
                   ),
-                const SizedBox(height: 7),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onAddScenario,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _primary,
+                            side: BorderSide(
+                              color: _primary.withValues(alpha: .35),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(
+                            'Add to $title',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (onDeleteCategory != null && hasCustom) ...[
+                        const SizedBox(width: 8),
+                        IconButton.outlined(
+                          tooltip: 'Delete custom scenarios in $title',
+                          style: IconButton.styleFrom(
+                            side: BorderSide(
+                              color: const Color(0xFFF87171).withValues(alpha: .3),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: onDeleteCategory,
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Color(0xFFF87171),
+                            size: 18,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
             crossFadeState: expanded
@@ -394,8 +477,13 @@ class _HistorySheet extends StatelessWidget {
 class _ScenarioBuilderDialog extends StatefulWidget {
   final RoleplayApi api;
   final RoleplayScenario? initialScenario;
+  final String? initialCategory;
 
-  const _ScenarioBuilderDialog({required this.api, this.initialScenario});
+  const _ScenarioBuilderDialog({
+    required this.api,
+    this.initialScenario,
+    this.initialCategory,
+  });
 
   @override
   State<_ScenarioBuilderDialog> createState() => _ScenarioBuilderDialogState();

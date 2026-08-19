@@ -176,7 +176,10 @@ def _roleplay_external_evaluation(context: dict) -> dict:
         valid_ids = {item["turn_id"] for item in turns}
 
         def score(name: str) -> int:
-            result = int(value[name])
+            raw = value.get(name)
+            if not isinstance(raw, (int, float)):
+                raise ValueError(f"{name} is missing or non-numeric")
+            result = int(raw)
             if not 0 <= result <= 100:
                 raise ValueError(f"{name} is outside 0-100")
             return result
@@ -212,7 +215,10 @@ def _roleplay_external_evaluation(context: dict) -> dict:
                 for existing in scenario_evidence
             ):
                 continue
-            rubric_score = int(item.get("score"))
+            raw_score = item.get("score")
+            if not isinstance(raw_score, (int, float)):
+                continue
+            rubric_score = int(raw_score)
             if not 0 <= rubric_score <= 100:
                 continue
             rubric_evidence = []

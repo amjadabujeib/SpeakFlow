@@ -72,14 +72,14 @@ class PlpServiceBaseMixin:
 
     @staticmethod
     def _expire_stale_roleplay_sessions() -> None:
-        """Close sessions left active by a prior process or failed socket bind."""
+        """Close sessions left active or finalizing by a prior process or failed socket bind."""
         now = utc_now()
         try:
             with session_scope() as session:
                 session.execute(
                     update(RoleplaySession)
                     .where(
-                        RoleplaySession.status == "active",
+                        RoleplaySession.status.in_({"active", "finalizing"}),
                         RoleplaySession.created_at <= now - timedelta(hours=6),
                     )
                     .values(

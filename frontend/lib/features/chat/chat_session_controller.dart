@@ -250,6 +250,15 @@ extension _ChatSessionController on _ChatScreenState {
     _channel!.sink.add(
       jsonEncode({'type': 'user_turn', 'turn_id': turnId, 'text': text}),
     );
+    Timer(const Duration(seconds: 20), () {
+      if (mounted && _waiting && _pendingTurnId == turnId) {
+        _update(() {
+          _waiting = false;
+          _pendingTurnId = null;
+        });
+        _showError('The server took too long to respond. Please try again.');
+      }
+    });
     _scrollToBottom();
   }
 
