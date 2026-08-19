@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 
-from openai import BadRequestError, OpenAI, RateLimitError
+from openai import APIStatusError, BadRequestError, OpenAI, RateLimitError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .config import (
@@ -93,21 +93,31 @@ class LessonGenerator:
     ) -> str:
         started = time.monotonic()
         if self.provider == "groq":
-            response = self._groq_pool.completion_create(
-                model=GROQ_PLP_MODEL,
-                messages=messages,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": schema_name,
-                        "strict": True,
-                        "schema": schema,
+            try:
+                response = self._groq_pool.completion_create(
+                    model=GROQ_PLP_MODEL,
+                    messages=messages,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema_name,
+                            "strict": True,
+                            "schema": schema,
+                        },
                     },
-                },
-                temperature=temperature,
-                reasoning_effort="low",
-                max_tokens=max_tokens,
-            )
+                    temperature=temperature,
+                    reasoning_effort="low",
+                    max_tokens=max_tokens,
+                )
+            except APIStatusError as exc:
+                if exc.status_code != 413:
+                    raise
+                raise GenerationError(
+                    "The lesson writer could not fit this week within the "
+                    "provider token budget. Your existing plan and progress "
+                    "are safe.",
+                    failure_kind="provider_token_budget",
+                ) from None
             self.client = self._groq_pool.primary_client
             usage = getattr(response, "usage", None)
             self.last_request_metadata = {

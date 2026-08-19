@@ -65,6 +65,25 @@ class _ActiveGenerationRepository extends _FixedRepository {
   };
 }
 
+class _FutureGenerationRepository extends _FixedRepository {
+  _FutureGenerationRepository(super.document);
+
+  @override
+  bool get isRemote => true;
+
+  @override
+  Future<JsonMap> generationStatus(String jobId) async => {
+    'job_id': jobId,
+    'status': 'generating_future_weeks',
+    'ready_weeks': 1,
+    'total_weeks': 4,
+    'completed_lessons': 5,
+    'total_lessons': 20,
+    'failed_lesson_ids': <String>[],
+    'retry_after_seconds': 0,
+  };
+}
+
 class _OnboardingRepository extends PlpRepository {
   JsonMap? savedProfile;
 

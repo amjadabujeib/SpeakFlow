@@ -19,6 +19,9 @@ class _GenerationBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final isFailed = generation.status == 'failed';
     final isWaiting = generation.status == 'waiting_for_model';
+    final generationWeek = (generation.readyWeeks + 1)
+        .clamp(1, generation.totalWeeks)
+        .toInt();
     final interests = document.learnerSnapshot.interests;
     final interestText = interests.isEmpty ? null : interests.join(' · ');
     final statusColor = isFailed ? AppColors.warning : AppColors.primary;
@@ -75,7 +78,9 @@ class _GenerationBanner extends StatelessWidget {
                           ? 'Plan generation paused'
                           : isWaiting
                           ? 'Waiting for Groq’s token window'
-                          : 'Building your new plan',
+                          : generationWeek == 1
+                          ? 'Building your new plan'
+                          : 'Building Week $generationWeek',
                       style: const TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w900,
@@ -90,8 +95,11 @@ class _GenerationBanner extends StatelessWidget {
                           ? 'Your roadmap is safe. Generation will resume '
                                 'automatically'
                                 '${retryRemaining > 0 ? ' in about ${retryRemaining}s' : ''}.'
-                          : 'Your preferences are applied and the new roadmap '
-                                'is ready. Week 1 is being written and checked.',
+                          : generationWeek == 1
+                          ? 'Your preferences are applied and the new roadmap '
+                                'is ready. Week 1 is being written and checked.'
+                          : 'Your completed lessons are safe. Week '
+                                '$generationWeek is being written and checked.',
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         height: 1.35,
@@ -138,10 +146,10 @@ class _GenerationBanner extends StatelessWidget {
           const SizedBox(height: 9),
           _GenerationStep(
             label: isFailed
-                ? 'Writing and checking Week 1 paused'
+                ? 'Writing and checking Week $generationWeek paused'
                 : isWaiting
                 ? 'Waiting for Groq, then continuing automatically'
-                : 'Writing and checking Week 1',
+                : 'Writing and checking Week $generationWeek',
             state: isFailed
                 ? _GenerationStepState.failed
                 : _GenerationStepState.active,

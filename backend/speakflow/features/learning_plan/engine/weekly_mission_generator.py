@@ -22,6 +22,8 @@ from .weekly_mission_payload import _aggregate_usage, _failed_generation_json
 from .weekly_mission_prepare import prepare_week
 from .weekly_mission_validation import _parse_weekly_draft
 
+WEEKLY_MAX_COMPLETION_TOKENS = 3000
+
 
 class WeeklyMissionGenerator:
     """Realize one planned week, then compile all five lessons atomically."""
@@ -128,7 +130,11 @@ class WeeklyMissionGenerator:
                         lesson_ids=[item["lesson_key"] for item in prepared.lessons],
                     ),
                     schema_name="plp_weekly_scenario",
-                    max_tokens=3400,
+                    # Groq's free-tier TPM limit reserves prompt plus maximum
+                    # completion tokens. Keep enough output for all five
+                    # surfaces without allowing a larger Week 2/3 prompt to
+                    # cross the 8K request ceiling.
+                    max_tokens=WEEKLY_MAX_COMPLETION_TOKENS,
                     temperature=0,
                 )
                 if not raw:

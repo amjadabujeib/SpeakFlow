@@ -134,7 +134,7 @@ class WeeklyMissionCompilationTests(WeeklyMissionCompilerTestBase):
         )
         self.assertEqual(len(writer.calls), 1)
         self.assertEqual(writer.calls[0]["schema_name"], "plp_weekly_scenario")
-        self.assertEqual(writer.calls[0]["max_tokens"], 3400)
+        self.assertEqual(writer.calls[0]["max_tokens"], 3000)
         self.assertIn("messages", writer.calls[0])
         self.assertIn("schema", writer.calls[0])
         stimulus_bucket = writer.calls[0]["schema"]["properties"][

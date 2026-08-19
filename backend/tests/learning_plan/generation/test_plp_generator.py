@@ -2,6 +2,8 @@
 
 import os
 
+from openai import APIStatusError
+
 from speakflow.shared.groq_keys import configured_groq_api_keys
 from tests.learning_plan.support.plp_generator_test_support import PlpGeneratorTestBase
 from tests.learning_plan.support.plp_test_support import (
@@ -23,6 +25,40 @@ from tests.learning_plan.support.plp_test_support import (
 
 
 class GeneratorTests(PlpGeneratorTestBase):
+    def test_provider_413_becomes_safe_token_budget_failure(self):
+        response = httpx.Response(
+            413,
+            request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat"),
+        )
+        too_large = APIStatusError(
+            "Request too large for organization private-id",
+            response=response,
+            body={
+                "error": {
+                    "message": "Request too large for organization private-id",
+                    "type": "tokens",
+                    "code": "rate_limit_exceeded",
+                }
+            },
+        )
+        client = Mock()
+        client.chat.completions.create.side_effect = too_large
+        generator = LessonGenerator(client=client, provider="groq")
+
+        with self.assertRaisesRegex(
+            GenerationError,
+            r"could not fit this week within the provider token budget",
+        ) as raised:
+            generator.request_structured(
+                messages=[],
+                schema={"type": "object"},
+                schema_name="token_budget_test",
+                max_tokens=3000,
+            )
+
+        self.assertEqual(raised.exception.failure_kind, "provider_token_budget")
+        self.assertNotIn("private-id", str(raised.exception))
+
     def test_plural_groq_keys_are_ordered_deduplicated_and_explicit(self):
         with patch.dict(
             os.environ,

@@ -1,6 +1,46 @@
 part of 'learning_plan_screen_test.dart';
 
 void registerLearningPlanRetryTests() {
+  testWidgets('future generation banner reports the unlocked week', (
+    tester,
+  ) async {
+    final fixture = await tester.runAsync(
+      () => const AssetPlpRepository().loadPlan(),
+    );
+    final futureDocument = PlpDocument(
+      formatRevision: fixture!.formatRevision,
+      plan: fixture.plan,
+      learnerSnapshot: fixture.learnerSnapshot,
+      progress: fixture.progress,
+      knowledgeSources: fixture.knowledgeSources,
+      generation: const PlpGeneration(
+        jobId: 'generation-job',
+        status: 'generating_future_weeks',
+        readyWeeks: 1,
+        totalWeeks: 4,
+        completedLessons: 5,
+        totalLessons: 20,
+        failedLessonIds: [],
+        error: null,
+      ),
+    );
+
+    await tester.pumpWidget(
+      testApp(
+        home: LearningPlanScreen(
+          repository: _FutureGenerationRepository(futureDocument),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Building Week 2'), findsOneWidget);
+    expect(find.text('Writing and checking Week 2'), findsOneWidget);
+    expect(find.textContaining('Week 1 is being written'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('failed generation retry cannot be submitted twice', (
     tester,
   ) async {
@@ -16,11 +56,11 @@ void registerLearningPlanRetryTests() {
       generation: const PlpGeneration(
         jobId: 'generation-job',
         status: 'failed',
-        readyWeeks: 0,
+        readyWeeks: 1,
         totalWeeks: 4,
-        completedLessons: 1,
-        totalLessons: 8,
-        failedLessonIds: ['w01_l02_assessment'],
+        completedLessons: 5,
+        totalLessons: 20,
+        failedLessonIds: ['w02_l01_input_noticing'],
         error: 'Groq is temporarily rate-limited.',
       ),
     );
@@ -43,6 +83,7 @@ void registerLearningPlanRetryTests() {
     expect(repository.retryCalls, 1);
     expect(find.text('Retrying…'), findsOneWidget);
     expect(find.text('Plan generation paused'), findsOneWidget);
+    expect(find.text('Writing and checking Week 2 paused'), findsOneWidget);
     expect(find.textContaining('assembled locally'), findsNothing);
   });
 

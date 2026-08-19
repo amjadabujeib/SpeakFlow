@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from openai import BadRequestError, RateLimitError
+from openai import APIStatusError, RateLimitError
 
 from .curated_lessons import SCORED_TYPES
 
@@ -58,7 +58,7 @@ def _provider_retry_after_seconds(exc: RateLimitError) -> int:
     return max(1, min(300, int(seconds + 1.0)))
 
 
-def _openai_error_details(exc: BadRequestError) -> dict:
+def _openai_error_details(exc: APIStatusError) -> dict:
     """Handle both raw OpenAI-style bodies and SDK-unwrapped error bodies."""
     body = exc.body if isinstance(exc.body, dict) else {}
     nested = body.get("error")
