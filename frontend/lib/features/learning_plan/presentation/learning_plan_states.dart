@@ -128,7 +128,7 @@ extension _LearningPlanStates on _LearningPlanScreenState {
         ? document.generation
         : PlpGeneration.fromJson(_generation!);
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

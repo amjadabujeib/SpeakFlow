@@ -216,36 +216,71 @@ class PlpDocumentMixin:
             None,
         )
         states = {}
+        completed_keys: set[str] = set()
         for lesson in lessons:
-            row = progress_by_lesson_id.get(lesson.id)
-            if row is None:
-                if current is not None and lesson.id == current.id:
+            if current is not None and lesson.id == current.id:
+                row = progress_by_lesson_id.get(lesson.id)
+                if row is None:
                     states[lesson.lesson_key] = {
                         "status": "in_progress",
                         "progress_fraction": 0,
                         "best_score": None,
                         "attempts": 0,
+                        "completed_activity_ids": [],
+                        "pronunciation_activity_progress": {},
                         "completed_at": None,
                     }
+                else:
+                    verified_completed_ids = visible_completed_by_lesson_id.get(
+                        lesson.id, []
+                    )
+                    has_unverified_legacy_pronunciation = (
+                        verified_completed_ids != list(row.completed_activity_ids or [])
+                    )
+                    states[lesson.lesson_key] = _progress_view(
+                        row,
+                        len(_required_activities(lesson)),
+                        completed_activity_ids=verified_completed_ids,
+                        best_score=(
+                            _latest_lesson_score(session, lesson)
+                            if has_unverified_legacy_pronunciation
+                            else None
+                        ),
+                        pronunciation_activity_progress=(
+                            _pronunciation_activity_progress(session, lesson)
+                        ),
+                        status="in_progress",
+                    ).model_dump(mode="json")
                 continue
-            verified_completed_ids = visible_completed_by_lesson_id[lesson.id]
-            has_unverified_legacy_pronunciation = verified_completed_ids != list(
-                row.completed_activity_ids or []
-            )
-            states[lesson.lesson_key] = _progress_view(
-                row,
-                len(_required_activities(lesson)),
-                completed_activity_ids=verified_completed_ids,
-                best_score=(
-                    _latest_lesson_score(session, lesson)
-                    if has_unverified_legacy_pronunciation
-                    else None
-                ),
-                pronunciation_activity_progress=(
-                    _pronunciation_activity_progress(session, lesson)
-                ),
-                status=visible_status_by_lesson_id[lesson.id],
-            ).model_dump(mode="json")
+
+            row = progress_by_lesson_id.get(lesson.id)
+            if row is None:
+                continue
+
+            if visible_status_by_lesson_id.get(lesson.id) == "completed":
+                required = set(lesson.required_lesson_keys or [])
+                if required.issubset(completed_keys):
+                    verified_completed_ids = visible_completed_by_lesson_id.get(
+                        lesson.id, []
+                    )
+                    has_unverified_legacy_pronunciation = (
+                        verified_completed_ids != list(row.completed_activity_ids or [])
+                    )
+                    states[lesson.lesson_key] = _progress_view(
+                        row,
+                        len(_required_activities(lesson)),
+                        completed_activity_ids=verified_completed_ids,
+                        best_score=(
+                            _latest_lesson_score(session, lesson)
+                            if has_unverified_legacy_pronunciation
+                            else None
+                        ),
+                        pronunciation_activity_progress=(
+                            _pronunciation_activity_progress(session, lesson)
+                        ),
+                        status="completed",
+                    ).model_dump(mode="json")
+                    completed_keys.add(lesson.lesson_key)
         learner_today = _learner_today(
             int(revision.learner_snapshot.get("timezone_offset_minutes") or 0)
         )

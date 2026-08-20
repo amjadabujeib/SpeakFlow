@@ -42,7 +42,7 @@ extension _LessonContentWidgets on _InteractiveLessonScreenState {
             ? widget.lesson.objectives.first
             : 'Complete the lesson activities.');
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 48),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -172,7 +172,7 @@ extension _LessonContentWidgets on _InteractiveLessonScreenState {
     required List<Widget> children,
   }) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 28),
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 48),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -1,5 +1,7 @@
 # Miscellaneous
 .env
+.venv/
+venv/
 /development-guidelines.md
 /start_dev.sh
 /.local_data/

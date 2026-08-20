@@ -159,6 +159,7 @@ class _InteractiveLessonScreenState
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             if (!keyboardVisible) _buildHeader(),

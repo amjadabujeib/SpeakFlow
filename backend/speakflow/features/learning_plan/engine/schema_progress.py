@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .schema_core import (
     GenerationView,
@@ -41,6 +41,26 @@ class ProgressView(StrictModel):
     weekly_goal_days: Literal[5] = 5
     studied_dates_this_week: list[str]
     lesson_states: dict[str, LessonProgressView]
+
+    @model_validator(mode="after")
+    def _validate_progress_invariants(self) -> ProgressView:
+        in_progress = [
+            key
+            for key, state in self.lesson_states.items()
+            if state.status == "in_progress"
+        ]
+        if self.current_lesson_id is None:
+            if in_progress:
+                raise ValueError(
+                    "current_lesson_id is None but lesson_states contains in_progress lessons"
+                )
+        else:
+            if len(in_progress) != 1 or in_progress[0] != self.current_lesson_id:
+                raise ValueError(
+                    f"progress must have exactly one in_progress lesson matching "
+                    f"current_lesson_id ({self.current_lesson_id}), found {in_progress}"
+                )
+        return self
 
 
 class PlpDocument(StrictModel):

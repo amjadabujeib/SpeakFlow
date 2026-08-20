@@ -126,9 +126,10 @@ class _GuidedSpeakingPracticePageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Guided speaking')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
@@ -171,6 +172,7 @@ class _GuidedSpeakingPracticePageState
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

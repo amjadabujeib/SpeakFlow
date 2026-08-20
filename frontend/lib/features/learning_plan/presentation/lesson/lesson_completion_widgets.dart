@@ -111,14 +111,17 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
 
     return Container(
       padding: compact
-          ? const EdgeInsets.fromLTRB(12, 6, 12, 6)
-          : const EdgeInsets.fromLTRB(18, 12, 18, 16),
+          ? const EdgeInsets.fromLTRB(16, 8, 16, 8)
+          : const EdgeInsets.fromLTRB(18, 14, 18, 16),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         top: false,
+        left: true,
+        right: true,
+        bottom: true,
         child: Row(
           children: [
             if (showBackButton && !compact) ...[
@@ -252,12 +255,12 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Spacer(),
+              const SizedBox(height: 16),
               Icon(
                 !passed
                     ? Icons.refresh_rounded
@@ -267,15 +270,15 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
                     ? Icons.emoji_events
                     : Icons.check_circle_outline,
                 color: _themeColor,
-                size: 104,
+                size: 96,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Text(
                 completionTitle,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
-                  fontSize: 34,
+                  fontSize: 30,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -285,14 +288,14 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 18,
+                  fontSize: 16,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 14,
+                  horizontal: 22,
+                  vertical: 12,
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
@@ -305,7 +308,7 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
                   resultLabel,
                   style: TextStyle(
                     color: _themeColor,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -320,7 +323,7 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
                   ),
                 ),
               ],
-              const Spacer(),
+              const SizedBox(height: 32),
               if (canReviewMistakes) ...[
                 SizedBox(
                   width: double.infinity,
@@ -371,6 +374,7 @@ extension _LessonCompletionWidgets on _InteractiveLessonScreenState {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
             ],
           ),
         ),

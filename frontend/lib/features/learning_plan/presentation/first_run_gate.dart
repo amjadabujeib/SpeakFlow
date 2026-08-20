@@ -176,6 +176,25 @@ class _FirstRunGateState extends ConsumerState<FirstRunGate> {
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Try again'),
                   ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() => _state = _GateState.onboarding);
+                    },
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Start a new plan'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () async {
+                      await ref.read(authApiProvider).forgetSession();
+                      if (context.mounted) {
+                        context.go('/auth');
+                      }
+                    },
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Use another account'),
+                  ),
                 ],
               ),
             ),

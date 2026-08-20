@@ -142,6 +142,11 @@ class PlpProgress {
 
   factory PlpProgress.fromJson(JsonMap json) {
     final rawStates = _requiredMap(json, 'lesson_states', 'progress');
+    final currentLessonId = _optionalString(
+      json,
+      'current_lesson_id',
+      'progress',
+    );
     final states = <String, LessonProgress>{};
     for (final entry in rawStates.entries) {
       if (entry.value is! Map<String, dynamic>) {
@@ -149,9 +154,24 @@ class PlpProgress {
           'progress.lesson_states.${entry.key} must be an object',
         );
       }
-      states[entry.key] = LessonProgress.fromJson(
+      final parsed = LessonProgress.fromJson(
         entry.value as JsonMap,
         entry.key,
+      );
+      if (parsed.status == StoredLessonStatus.inProgress) {
+        if (currentLessonId == null || entry.key != currentLessonId) {
+          continue;
+        }
+      }
+      states[entry.key] = parsed;
+    }
+    if (currentLessonId != null && !states.containsKey(currentLessonId)) {
+      states[currentLessonId] = const LessonProgress(
+        status: StoredLessonStatus.inProgress,
+        progressFraction: 0,
+        bestScore: null,
+        attempts: 0,
+        completedAt: null,
       );
     }
     final studiedDates =
@@ -170,7 +190,7 @@ class PlpProgress {
             })
             .toList(growable: false);
     final result = PlpProgress(
-      currentLessonId: _optionalString(json, 'current_lesson_id', 'progress'),
+      currentLessonId: currentLessonId,
       currentStreakDays: _requiredInt(json, 'current_streak_days', 'progress'),
       longestStreakDays: _requiredInt(json, 'longest_streak_days', 'progress'),
       weeklyGoalDays: _requiredInt(json, 'weekly_goal_days', 'progress'),

@@ -185,9 +185,10 @@ class _LessonPronunciationPracticePageState
     );
     return Scaffold(
       appBar: AppBar(title: const Text('Sound check')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
@@ -370,6 +371,7 @@ class _LessonPronunciationPracticePageState
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

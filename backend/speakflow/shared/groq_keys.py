@@ -12,7 +12,10 @@ def configured_groq_api_keys() -> tuple[str, ...]:
     entries are removed so one credential is never selected twice.
     """
 
-    candidates = os.environ.get("GROQ_API_KEYS", "").split(",")
+    plural = os.environ.get("GROQ_API_KEYS", "").strip()
+    singular = os.environ.get("GROQ_API_KEY", "").strip()
+    raw_keys = plural if plural else singular
+    candidates = raw_keys.split(",")
 
     result: list[str] = []
     seen: set[str] = set()

@@ -29,7 +29,7 @@ def _default_activity_phase(activities: list, index: int, domain: str) -> str:
 def _clean_source(value: str) -> str:
     value = re.sub(r"<[^>]+>", " ", value)
     value = re.sub(r"\s+", " ", value).strip()
-    return value[:5000]
+    return value[:2000]
 
 
 def _activity_prompt(activity: dict) -> str:
